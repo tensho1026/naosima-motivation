@@ -43,20 +43,38 @@ export const reasonSchema = z.object({
   content: z.string().trim().min(1).max(4_000),
 })
 
-export const visitSchema = z
-  .object({
-    id: optionalId,
-    startDate: dateString,
-    endDate: dateString,
-    title: z.string().trim().min(1).max(120),
-    description: optionalText,
-    rating: z.number().int().min(1).max(5).nullable().optional(),
-    places: z.array(z.string().trim().min(1).max(120)).max(100).default([]),
-  })
-  .refine((value) => value.endDate >= value.startDate, {
-    message: 'End date must not be before start date',
-    path: ['endDate'],
-  })
+const visitBaseSchema = z.object({
+  id: optionalId,
+  startDate: dateString,
+  endDate: dateString,
+  title: z.string().trim().min(1).max(120),
+  description: optionalText,
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+  places: z.array(z.string().trim().min(1).max(120)).max(100).default([]),
+})
+
+function validateVisitDates<Schema extends z.ZodType>(schema: Schema) {
+  return schema.refine(
+    (value) => {
+      const visit = value as { endDate?: string; startDate?: string }
+      return (
+        !visit.endDate || !visit.startDate || visit.endDate >= visit.startDate
+      )
+    },
+    {
+      message: 'End date must not be before start date',
+      path: ['endDate'],
+    },
+  )
+}
+
+export const visitSchema = validateVisitDates(visitBaseSchema)
+export const createVisitSchema = validateVisitDates(
+  visitBaseSchema.omit({ id: true }),
+)
+export const updateVisitSchema = validateVisitDates(
+  visitBaseSchema.required({ id: true }),
+)
 
 export const memorySchema = z.object({
   id: optionalId,
@@ -104,6 +122,7 @@ export const audioMetadataSchema = z.object({
 export const extraResourceNames = [
   'favoritePlaces',
   'albums',
+  'albumPhotos',
   'collectionItems',
   'seasonalExperiences',
   'calendarEvents',
@@ -129,6 +148,7 @@ export const extraResourceNames = [
   'fixedCostReductions',
   'timeCapsules',
   'photoComparisons',
+  'photoComparisonItems',
 ] as const
 
 export type ExtraResourceName = (typeof extraResourceNames)[number]
@@ -168,6 +188,11 @@ const resourceSchemas: Record<ExtraResourceName, z.ZodType> = {
     description: optionalText,
     visitId: z.string().uuid().nullable().optional(),
     coverPhotoId: z.string().uuid().nullable().optional(),
+  }),
+  albumPhotos: z.object({
+    albumId: z.string().uuid(),
+    photoId: z.string().uuid(),
+    sortOrder: z.number().int().min(0).max(10_000).default(0),
   }),
   collectionItems: z.object({
     title: z.string().trim().min(1).max(120),
@@ -263,7 +288,17 @@ const resourceSchemas: Record<ExtraResourceName, z.ZodType> = {
     workStyle: z.string().trim().min(1).max(120),
     workDaysPerWeek: z.number().min(0).max(7),
     monthlyIncome: z.number().int().min(0).max(100_000_000),
-    hobbies: z.array(z.string().trim().min(1).max(80)).max(100),
+    hobbies: z.preprocess(
+      (value) =>
+        typeof value === 'string'
+          ? value
+              .replace(/^\[|\]$/g, '')
+              .split(',')
+              .map((item) => item.trim().replace(/^['"]|['"]$/g, ''))
+              .filter(Boolean)
+          : value,
+      z.array(z.string().trim().min(1).max(80)).max(100),
+    ),
   }),
   futureProjects: z.object({
     title: z.string().trim().min(1).max(120),
@@ -330,6 +365,12 @@ const resourceSchemas: Record<ExtraResourceName, z.ZodType> = {
     title: z.string().trim().min(1).max(120),
     placeId: z.string().uuid().nullable().optional(),
     description: optionalText,
+  }),
+  photoComparisonItems: z.object({
+    comparisonId: z.string().uuid(),
+    photoId: z.string().uuid(),
+    year: z.number().int().min(1900).max(2200),
+    sortOrder: z.number().int().min(0).max(10_000).default(0),
   }),
 }
 

@@ -7,6 +7,7 @@ import { calculateReadiness } from '#/services/readiness.service'
 import {
   audioMetadataSchema,
   bucketItemSchema,
+  createVisitSchema,
   extraResourceDeleteSchema,
   extraResourceMutationSchema,
   extraResourceNameSchema,
@@ -19,7 +20,7 @@ import {
   parseExtraResourceValues,
   photoMetadataSchema,
   reasonSchema,
-  visitSchema,
+  updateVisitSchema,
 } from './content-validation'
 import { contentRepository } from './content-repository.server'
 import { coreRepository } from './core-repository.server'
@@ -64,7 +65,29 @@ export const getFutureHub = createServerFn({ method: 'GET' }).handler(
           'timeCapsules',
         ]),
       ])
-    return { idealDay, idealWeek, diaries, bucket, reasons, extras }
+    const today = new Date().toISOString().slice(0, 10)
+    const maskLocked = (
+      rows: Array<Record<string, string | number | boolean | null>>,
+      dateField: string,
+    ) =>
+      rows.map((row) =>
+        String(row[dateField] ?? '') > today
+          ? { ...row, content: '🔒 開封日まで非表示' }
+          : row,
+      )
+    return {
+      idealDay,
+      idealWeek,
+      diaries,
+      bucket,
+      reasons,
+      extras: {
+        ...extras,
+        futureLetters: maskLocked(extras.futureLetters ?? [], 'openOn'),
+        timeCapsules: maskLocked(extras.timeCapsules ?? [], 'revealAt'),
+        selfMessages: maskLocked(extras.selfMessages ?? [], 'revealAt'),
+      },
+    }
   },
 )
 
@@ -157,12 +180,14 @@ export const getMemoriesHub = createServerFn({ method: 'GET' }).handler(
         repository.listExtras([
           'favoritePlaces',
           'albums',
+          'albumPhotos',
           'collectionItems',
           'seasonalExperiences',
           'calendarEvents',
           'bingoItems',
           'islandQuests',
           'photoComparisons',
+          'photoComparisonItems',
         ]),
       ])
     return {
@@ -181,11 +206,11 @@ export const getVisits = createServerFn({ method: 'GET' }).handler(() =>
 )
 
 export const createVisit = createServerFn({ method: 'POST' })
-  .validator(visitSchema.omit({ id: true }))
+  .validator(createVisitSchema)
   .handler(({ data }) => contentRepository().saveVisit(data))
 
 export const updateVisit = createServerFn({ method: 'POST' })
-  .validator(visitSchema.required({ id: true }))
+  .validator(updateVisitSchema)
   .handler(({ data }) => contentRepository().saveVisit(data))
 
 export const deleteVisit = createServerFn({ method: 'POST' })
@@ -326,8 +351,65 @@ export const deleteAudioRecord = createServerFn({ method: 'POST' })
     return { deleted: true }
   })
 
+export const createTimeCapsuleMedia = createServerFn({ method: 'POST' })
+  .validator(uploadFormSchema)
+  .handler(async ({ data }) => {
+    const file = data.get('file')
+    if (!(file instanceof File)) throw new Error('写真または音声が必要です')
+    const isPhoto = file.type.startsWith('image/')
+    const isAudio = file.type.startsWith('audio/')
+    if (!isPhoto && !isAudio) throw new Error('写真または音声のみ保存できます')
+    const limit = isPhoto ? 10 * 1024 * 1024 : 50 * 1024 * 1024
+    if (file.size === 0 || file.size > limit) {
+      throw new Error(
+        isPhoto
+          ? '画像は10MB以下にしてください'
+          : '音声は50MB以下にしてください',
+      )
+    }
+    const values = parseExtraResourceValues('timeCapsules', {
+      title: data.get('title'),
+      content: data.get('content') || null,
+      revealAt: data.get('revealAt'),
+      mediaType: isPhoto ? 'PHOTO' : 'AUDIO',
+      storageKey: null,
+      mediaUrl: null,
+      openedAt: null,
+    })
+    const storageKey = `capsules/${crypto.randomUUID()}.${extensionFor(file)}`
+    await env.PHOTOS.put(storageKey, file.stream(), {
+      httpMetadata: { contentType: file.type },
+    })
+    try {
+      return await contentRepository().saveExtra('timeCapsules', {
+        ...values,
+        storageKey,
+        mediaUrl: `/media/${storageKey}`,
+      })
+    } catch (error) {
+      await env.PHOTOS.delete(storageKey)
+      throw error
+    }
+  })
+
 export const getMonthlyReviews = createServerFn({ method: 'GET' }).handler(() =>
   contentRepository().listReviews(),
+)
+
+export const getReviewsHub = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const repository = contentRepository()
+    const [reviews, snapshots, extras] = await Promise.all([
+      repository.listReviews(),
+      repository.listSnapshots(),
+      repository.listExtras([
+        'migrationJournalEntries',
+        'moodLogs',
+        'reasonRevisions',
+      ]),
+    ])
+    return { reviews, snapshots, extras }
+  },
 )
 
 export const getMonthlySummary = createServerFn({ method: 'GET' })
@@ -365,13 +447,41 @@ export const getMonthlySummary = createServerFn({ method: 'GET' })
     }
   })
 
+async function saveReviewAndSnapshot(
+  data: Parameters<ReturnType<typeof contentRepository>['saveReview']>[0],
+) {
+  const content = contentRepository()
+  const core = coreRepository()
+  const [review, conditions, finance, totalXp, missionsList, skillList] =
+    await Promise.all([
+      content.saveReview(data),
+      core.listConditions(),
+      core.getFinanceSettings(),
+      core.totalXp(),
+      core.listMissions(),
+      core.listSkills(),
+    ])
+  await content.saveSnapshot({
+    month: data.month,
+    readiness: calculateReadiness(conditions).overall,
+    savings: finance?.currentSavings ?? 0,
+    totalXp,
+    completedMissions: missionsList.filter((mission) => mission.completed)
+      .length,
+    skillLevels: Object.fromEntries(
+      skillList.map((skill) => [skill.name, skill.level]),
+    ),
+  })
+  return review
+}
+
 export const createMonthlyReview = createServerFn({ method: 'POST' })
   .validator(monthlyReviewSchema.omit({ id: true }))
-  .handler(({ data }) => contentRepository().saveReview(data))
+  .handler(({ data }) => saveReviewAndSnapshot(data))
 
 export const updateMonthlyReview = createServerFn({ method: 'POST' })
   .validator(monthlyReviewSchema.required({ id: true }))
-  .handler(({ data }) => contentRepository().saveReview(data))
+  .handler(({ data }) => saveReviewAndSnapshot(data))
 
 export const getExtraResource = createServerFn({ method: 'GET' })
   .validator(z.object({ resource: extraResourceNameSchema }))
@@ -386,6 +496,13 @@ export const saveExtraResource = createServerFn({ method: 'POST' })
 
 export const deleteExtraResource = createServerFn({ method: 'POST' })
   .validator(extraResourceDeleteSchema)
-  .handler(({ data }) =>
-    contentRepository().deleteExtra(data.resource, data.id),
-  )
+  .handler(async ({ data }) => {
+    const repository = contentRepository()
+    if (data.resource === 'timeCapsules') {
+      const capsule = await repository.getExtra(data.resource, data.id)
+      if (typeof capsule?.storageKey === 'string') {
+        await env.PHOTOS.delete(capsule.storageKey)
+      }
+    }
+    return repository.deleteExtra(data.resource, data.id)
+  })

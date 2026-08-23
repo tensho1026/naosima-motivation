@@ -39,28 +39,38 @@ export const reorderSchema = z.object({
   ids: z.array(z.string().uuid()).min(1).max(200),
 })
 
-export const missionInputSchema = z
-  .object({
-    id: z.string().uuid().optional(),
-    title: z.string().trim().min(1).max(120),
-    description: z.string().trim().max(2_000).nullable().optional(),
-    type: z.enum(missionTypes),
-    category: categorySchema,
-    xp: z.number().int().min(0).max(10_000),
-    impactScore: z.number().int().min(1).max(5),
-    estimatedMinutes: z.number().int().min(1).max(1_440),
-    minimumTitle: z.string().trim().min(1).max(120).nullable().optional(),
-    minimumMinutes: z.number().int().min(1).max(60).nullable().optional(),
-    weeklyPriority: z.boolean().default(false),
-    skillId: z.string().uuid().nullable().optional(),
-    scheduledDate: dateString.nullable().optional(),
-    month: z.number().int().min(1).max(12).nullable().optional(),
-    year: z.number().int().min(2000).max(2200).nullable().optional(),
-  })
-  .refine(
-    (value) => value.type !== 'DAILY' || value.scheduledDate != null,
-    'Daily missions require a scheduled date',
-  )
+const missionBaseSchema = z.object({
+  id: z.string().uuid().optional(),
+  title: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(2_000).nullable().optional(),
+  type: z.enum(missionTypes),
+  category: categorySchema,
+  xp: z.number().int().min(0).max(10_000),
+  impactScore: z.number().int().min(1).max(5),
+  estimatedMinutes: z.number().int().min(1).max(1_440),
+  minimumTitle: z.string().trim().min(1).max(120).nullable().optional(),
+  minimumMinutes: z.number().int().min(1).max(60).nullable().optional(),
+  weeklyPriority: z.boolean().default(false),
+  skillId: z.string().uuid().nullable().optional(),
+  scheduledDate: dateString.nullable().optional(),
+  month: z.number().int().min(1).max(12).nullable().optional(),
+  year: z.number().int().min(2000).max(2200).nullable().optional(),
+})
+
+function validateMissionSchedule<Schema extends z.ZodType>(schema: Schema) {
+  return schema.refine((value) => {
+    const mission = value as { type?: string; scheduledDate?: string | null }
+    return mission.type !== 'DAILY' || mission.scheduledDate != null
+  }, 'Daily missions require a scheduled date')
+}
+
+export const missionInputSchema = validateMissionSchedule(missionBaseSchema)
+export const createMissionSchema = validateMissionSchedule(
+  missionBaseSchema.omit({ id: true }),
+)
+export const updateMissionSchema = validateMissionSchedule(
+  missionBaseSchema.required({ id: true }),
+)
 
 export const financeSettingsSchema = z.object({
   currentSavings: z.number().int().min(0).max(1_000_000_000),

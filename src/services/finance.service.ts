@@ -70,7 +70,10 @@ export function calculateSavingForecast({
   }
 }
 
-export function calculateScenario(scenario: ScenarioInput, from = new Date()) {
+export function calculateScenario<T extends ScenarioInput>(
+  scenario: T,
+  from = new Date(),
+) {
   const cashFlow = scenario.monthlyIncome - scenario.monthlyExpenses
   const savingPace = Math.min(
     Math.max(scenario.monthlySaving, 0),

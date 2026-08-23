@@ -13,17 +13,18 @@ import {
   addSkillXpSchema,
   careerConditionSchema,
   conditionInputSchema,
+  createMissionSchema,
   financeSettingsSchema,
   idSchema,
   incomeSourceSchema,
   lifeSimulationSchema,
-  missionInputSchema,
   reorderSchema,
   roadmapInputSchema,
   scenarioSchema,
   settingsSchema,
   sideIncomeGoalSchema,
   skillInputSchema,
+  updateMissionSchema,
   savingInputSchema,
 } from './validation'
 
@@ -103,11 +104,11 @@ export const getMissions = createServerFn({ method: 'GET' }).handler(() =>
 )
 
 export const createMission = createServerFn({ method: 'POST' })
-  .validator(missionInputSchema.omit({ id: true }))
+  .validator(createMissionSchema)
   .handler(({ data }) => coreRepository().saveMission(data))
 
 export const updateMission = createServerFn({ method: 'POST' })
-  .validator(missionInputSchema.required({ id: true }))
+  .validator(updateMissionSchema)
   .handler(({ data }) => coreRepository().saveMission(data))
 
 export const deleteMission = createServerFn({ method: 'POST' })

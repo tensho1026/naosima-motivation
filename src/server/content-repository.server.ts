@@ -10,6 +10,7 @@ import {
   idealWeekItems,
   memories,
   monthlyReviews,
+  monthlySnapshots,
   naoshimaReasons,
   nextVisitItems,
   photos,
@@ -24,7 +25,12 @@ export type ResourceRow = Record<string, string | number | boolean | null>
 
 const resourceConfig: Record<
   ExtraResourceName,
-  { table: string; order: string; hasUpdatedAt: boolean }
+  {
+    table: string
+    order: string
+    hasUpdatedAt: boolean
+    hasCreatedAt?: boolean
+  }
 > = {
   favoritePlaces: {
     table: 'favorite_places',
@@ -32,6 +38,12 @@ const resourceConfig: Record<
     hasUpdatedAt: true,
   },
   albums: { table: 'albums', order: 'updated_at', hasUpdatedAt: true },
+  albumPhotos: {
+    table: 'album_photos',
+    order: 'sort_order',
+    hasUpdatedAt: false,
+    hasCreatedAt: false,
+  },
   collectionItems: {
     table: 'collection_items',
     order: 'updated_at',
@@ -152,6 +164,12 @@ const resourceConfig: Record<
     table: 'photo_comparisons',
     order: 'updated_at',
     hasUpdatedAt: true,
+  },
+  photoComparisonItems: {
+    table: 'photo_comparison_items',
+    order: 'sort_order',
+    hasUpdatedAt: false,
+    hasCreatedAt: false,
   },
 }
 
@@ -488,6 +506,26 @@ export class ContentRepository {
       .get()
   }
 
+  listSnapshots() {
+    return this.db
+      .select()
+      .from(monthlySnapshots)
+      .orderBy(asc(monthlySnapshots.month))
+      .all()
+  }
+
+  saveSnapshot(input: typeof monthlySnapshots.$inferInsert) {
+    return this.db
+      .insert(monthlySnapshots)
+      .values(input)
+      .onConflictDoUpdate({
+        target: monthlySnapshots.month,
+        set: input,
+      })
+      .returning()
+      .get()
+  }
+
   listAudio() {
     return this.db
       .select()
@@ -532,6 +570,16 @@ export class ContentRepository {
     return result.results.map(deserializeRow)
   }
 
+  async getExtra(resource: ExtraResourceName, id: string) {
+    const config = resourceConfig[resource]
+    const row = await env.DB.prepare(
+      `SELECT * FROM ${config.table} WHERE id = ? LIMIT 1`,
+    )
+      .bind(id)
+      .first<Record<string, unknown>>()
+    return row ? deserializeRow(row) : null
+  }
+
   async saveExtra(
     resource: ExtraResourceName,
     values: Record<string, unknown>,
@@ -558,7 +606,7 @@ export class ContentRepository {
     }
     const newId = crypto.randomUUID()
     normalized.id = newId
-    normalized.created_at = now
+    if (config.hasCreatedAt !== false) normalized.created_at = now
     if (config.hasUpdatedAt) normalized.updated_at = now
     const entries = Object.entries(normalized)
     const placeholders = entries.map(() => '?').join(', ')
