@@ -3,6 +3,8 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
+import { PwaRegistration } from '../components/PwaRegistration'
+import { ToastProvider } from '../components/ui/Toast'
 
 import appCss from '../styles.css?url'
 
@@ -19,7 +21,16 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Naoshima Bound — 直島移住への旅',
+      },
+      {
+        name: 'theme-color',
+        content: '#173a40',
+      },
+      {
+        name: 'description',
+        content:
+          '直島への移住を実現するまでの行動、成長、資金、仕事、人生設計を一つにつなぐ個人ダッシュボード。',
       },
     ],
     links: [
@@ -27,6 +38,7 @@ export const Route = createRootRoute({
         rel: 'stylesheet',
         href: appCss,
       },
+      { rel: 'manifest', href: '/manifest.webmanifest' },
     ],
   }),
   shellComponent: RootDocument,
@@ -34,15 +46,18 @@ export const Route = createRootRoute({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="ja" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
-        <Header />
-        {children}
-        <Footer />
+        <ToastProvider>
+          <PwaRegistration />
+          <Header />
+          {children}
+          <Footer />
+        </ToastProvider>
         <TanStackDevtools
           config={{
             position: 'bottom-right',

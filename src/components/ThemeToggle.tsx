@@ -36,6 +36,8 @@ export default function ThemeToggle() {
 
   useEffect(() => {
     const initialMode = getInitialMode()
+    // Hydration must start from the same mode as SSR; synchronize stored state after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMode(initialMode)
     applyThemeMode(initialMode)
   }, [])

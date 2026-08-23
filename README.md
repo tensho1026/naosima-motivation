@@ -1,201 +1,158 @@
-Welcome to your new TanStack Start app!
+# Naoshima Bound
 
-# Getting Started
+直島への移住を実現するまでの「今日の行動 → 成長 → 移住条件の達成 → 直島に近づく」を一本につなぐ、個人用フルスタックWebアプリです。TODOを消化するだけでなく、Mission、Life XP、スキル、移住資金、働き方、未来設計、訪問と思い出を同じダッシュボードで可視化します。
 
-To run this application:
+初期版は1ユーザー・認証なしです。AI、物件／求人検索、SNS、他ユーザーランキング、通知、課金、広告は含みません。
+
+## スクリーンショット
+
+![Naoshima Bound Dashboard](public/screenshots/dashboard.jpg)
+
+## 主な機能
+
+- 移住日カウントダウン、移住準備度、Ready判定、仮想1,000km Journey、Life XP
+- Daily／Monthly／Yearly Mission、Impact Score、今週の最優先、Minimum Mission、No Zero Week
+- 移住条件とロードマップ、逆算カレンダー、レーダー、Milestone、Season／Focus Goal
+- 移住資金、入出金履歴、達成予測、What-if、シナリオ比較、生活費／自由資金シミュレーション
+- Career条件、収入源マップ、副収入Challenge、仕事独立度、Skill Tree
+- 理想の一日／一週間、Future Diary、100 Dreams、未来プロフィール、手紙、タイムカプセル
+- 訪問・場所・思い出マップ、R2写真／音声、アルバム、図鑑、季節、Bingo、Quest、写真比較
+- Action History、Achievement自動解除、月次Review、Before／After、Score History、Journey Replay
+- PWA manifest、Service Worker、ホーム／ロック画面向けWidget
+
+## Technology
+
+- TanStack Start / TanStack Router / React / TypeScript
+- TanStack Start Server Functions + Zod
+- Cloudflare Workers / D1 / R2
+- Drizzle ORM / drizzle-kit
+- Tailwind CSS v4 + application CSS
+- Recharts / Leaflet / React Leaflet / date-fns / lucide-react
+- Vitest / Testing Library / ESLint / Prettier
+- pnpm
+
+## Architecture
+
+```mermaid
+flowchart TD
+  Browser[Browser / PWA] --> Router[TanStack Router + React]
+  Router --> ServerFn[Validated Server Functions]
+  ServerFn --> Services[Domain services]
+  ServerFn --> Repositories[Repositories]
+  Repositories --> Drizzle[Drizzle ORM]
+  Drizzle --> D1[(Cloudflare D1)]
+  ServerFn --> R2[(Cloudflare R2)]
+  R2 --> Media[/Protected media route/]
+  Media --> Browser
+```
+
+構造化データとメディアのメタデータはD1、画像・音声本体はR2へ保存します。メディア削除ではD1レコードとR2オブジェクトの両方を削除します。Leafletはクライアント側でのみ遅延ロードされます。
+
+## Setup
+
+前提: Node.js 22以上、pnpm 10、Cloudflareアカウント。
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm exec wrangler login
+pnpm exec wrangler d1 create naoshima-bound
+pnpm exec wrangler r2 bucket create naoshima-bound-photos
 ```
 
-# Building For Production
+`wrangler d1 create` が返す `database_id` を `wrangler.jsonc` の仮ID `00000000-0000-0000-0000-000000000000` と置き換えてください。R2名を変更した場合は同ファイルの `bucket_name` も合わせます。
 
-To build this application for production:
+## Environment Variables
+
+Cloudflare Workers上のアプリは `wrangler.jsonc` の `DB` と `PHOTOS` Bindingを利用するため、実行時の `DATABASE_URL` は不要です。
+
+Drizzle StudioなどD1 HTTP APIを直接使う開発ツール向けに、必要な場合だけ次を設定します。
 
 ```bash
-npm run build
+cp .env.example .env
 ```
 
-## Styling
+```env
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_DATABASE_ID=
+CLOUDFLARE_D1_TOKEN=
+```
 
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
+ローカル専用Secretは `.dev.vars.example` を `.dev.vars` にコピーして追加できます。`.env*` と `.dev.vars*` は例示ファイル以外Git管理されません。
 
-### Removing Tailwind CSS
+## Database Migration
 
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
-
-
-## Deploy with Nitro
-
-This project uses Nitro as a generic server adapter, so it can run on any Node-compatible host.
+ローカルD1:
 
 ```bash
-npm run build
-node dist/server/index.mjs
+pnpm db:migrate
 ```
 
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+Cloudflare上のD1:
 
-For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
-
-
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
+```bash
+pnpm db:migrate:remote
 ```
 
-Then anywhere in your JSX you can use it like so:
+スキーマ変更後のmigration生成:
 
-```tsx
-<Link to="/about">About</Link>
+```bash
+pnpm db:generate
 ```
 
-This will create a link that will navigate to the `/about` route.
+## Seed
 
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
+開発用Seedには、2030-04-01の移住目標、6カテゴリの条件、Mission、Skill、資金、Career、未来の生活、訪問、Achievementなど、主要画面を確認できる代表データが入っています。`INSERT OR IGNORE` のため再実行できます。
 
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
+```bash
+pnpm db:seed
 ```
 
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
+リモートD1へ投入する場合:
 
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
+```bash
+pnpm db:seed:remote
 ```
 
-## API Routes
+## Development
 
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
+```bash
+pnpm dev
 ```
 
-## Data Fetching
+[http://localhost:3000](http://localhost:3000) を開きます。R2 BindingもWranglerのローカルストレージへ接続され、アップロードファイルを `public/` やD1 BLOBへ永続化しません。
 
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
+## Test
 
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
+```bash
+pnpm test
+pnpm lint
+pnpm typecheck
+pnpm format:check
 ```
 
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
+Unit Testは準備度、Journey、XP、資金予測、生活シミュレーション、Achievement、行動洞察、日の出／日の入りを対象にしています。Mission完了のIntegration Testでは、実際のmigrationを適用したインメモリSQLiteに対し、Mission更新・XP Transaction・Action Log・Skill XPが同じバッチで反映されることを確認します。
 
+すべてをまとめて検証する場合:
 
-# Demo files
+```bash
+pnpm check
+```
 
-Files prefixed with `demo` can be safely deleted. They are there to provide a starting point for you to play around with the features you've installed.
+## Build
 
+```bash
+pnpm build
+```
 
-# Learn More
+出力はCloudflare Workers向けに生成されます。デプロイ前にD1/R2を作成し、`wrangler.jsonc` の本番Bindingを設定してください。
 
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
+```bash
+pnpm deploy
+```
 
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+## Data notes
+
+- 写真: 10MB以下、音声: 50MB以下。MIME typeをServer Functionで検証します。
+- タイムカプセルの文章・R2メディアは開封日までレスポンス上でも隠します。
+- 月次Review保存時に、その月の準備度・資金・XP・完了Mission・Skill LevelのSnapshotを記録します。
+- 秘密情報をリポジトリへコミットしないでください。

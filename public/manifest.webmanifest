@@ -1,0 +1,22 @@
+{
+  "name": "Naoshima Bound",
+  "short_name": "Naoshima",
+  "description": "直島移住への行動・成長・資金・人生設計ダッシュボード",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#e7f3ec",
+  "theme_color": "#173a40",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "今日の一歩", "url": "/missions" },
+    { "name": "カウントダウン", "url": "/widget" },
+    { "name": "思い出", "url": "/memories" }
+  ]
+}
