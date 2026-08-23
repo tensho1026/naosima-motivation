@@ -14,17 +14,23 @@ import {
   Waves,
   X,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
   PolarAngleAxis,
   PolarGrid,
   Radar,
   RadarChart,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts'
 
 import {
+  Badge,
   Card,
   LoadingPage,
   ProgressBar,
@@ -72,6 +78,23 @@ function DashboardPage() {
   const [extraSaving, setExtraSaving] = useState(20_000)
   const [distance, setDistance] = useState<number | null>(null)
   const [locating, setLocating] = useState(false)
+  const [heroPhotoIndex, setHeroPhotoIndex] = useState(0)
+  const heroPhotos = useMemo(
+    () => [
+      ...data.photos.filter((photo) => photo.favorite),
+      ...data.photos.filter((photo) => !photo.favorite),
+    ],
+    [data.photos],
+  )
+  const heroPhoto = heroPhotos[heroPhotoIndex % Math.max(heroPhotos.length, 1)]
+  useEffect(() => {
+    if (heroPhotos.length < 2) return
+    const timer = window.setInterval(
+      () => setHeroPhotoIndex((index) => (index + 1) % heroPhotos.length),
+      8_000,
+    )
+    return () => window.clearInterval(timer)
+  }, [heroPhotos.length])
   const radar = Object.entries(data.readiness.categories).map(
     ([key, value]) => ({
       category: categoryLabels[key] ?? key,
@@ -86,12 +109,31 @@ function DashboardPage() {
       fallbackMonthlySaving: data.finance.monthlySavingTarget + extraSaving,
     })
   }, [data.finance, extraSaving])
+  const recentAchievements = useMemo(
+    () =>
+      [...data.achievements.unlocked]
+        .sort(
+          (left, right) =>
+            right.unlockedAt.getTime() - left.unlockedAt.getTime(),
+        )
+        .slice(0, 3)
+        .map((unlocked) => ({
+          ...unlocked,
+          definition: data.achievements.definitions.find(
+            (definition) => definition.id === unlocked.achievementId,
+          ),
+        })),
+    [data.achievements],
+  )
 
-  async function finishTodayStep() {
-    if (!data.todayStep) return
+  async function finishMission(mission: {
+    id: string
+    title: string
+    xp: number
+  }) {
     try {
-      await complete({ data: { id: data.todayStep.id } })
-      notify(`「${data.todayStep.title}」を達成。+${data.todayStep.xp} XP`)
+      await complete({ data: { id: mission.id } })
+      notify(`「${mission.title}」を達成。+${mission.xp} XP`)
       await router.invalidate({ sync: true })
     } catch (error) {
       notify(
@@ -99,6 +141,10 @@ function DashboardPage() {
         'error',
       )
     }
+  }
+
+  async function finishTodayStep() {
+    if (data.todayStep) await finishMission(data.todayStep)
   }
 
   function locate() {
@@ -126,12 +172,28 @@ function DashboardPage() {
 
   return (
     <main className="app-page dashboard-page">
-      <section className="dashboard-hero">
+      <section
+        className={`dashboard-hero ${heroPhoto ? 'has-photo' : ''}`}
+        style={
+          heroPhoto
+            ? {
+                backgroundImage: `linear-gradient(100deg, rgba(12, 35, 39, .93) 0%, rgba(12, 35, 39, .72) 58%, rgba(12, 35, 39, .42) 100%), url("${heroPhoto.imageUrl.replaceAll('"', '%22')}")`,
+              }
+            : undefined
+        }
+      >
         <div>
           <p className="eyebrow">THE JOURNEY CONTINUES</p>
           <h1>
-            直島まで、あと{' '}
-            <strong>{data.countdown.days.toLocaleString('ja-JP')}</strong> 日
+            {data.countdown.reached ? (
+              '移住目標日を迎えました'
+            ) : (
+              <>
+                直島まで、あと{' '}
+                <strong>{data.countdown.days.toLocaleString('ja-JP')}</strong>{' '}
+                日
+              </>
+            )}
           </h1>
           <p>
             積み重ねた {data.journeyDays} 日。あと {data.summersUntil}{' '}
@@ -220,6 +282,44 @@ function DashboardPage() {
           )}
         </Card>
 
+        <Card title="直島生活まで、あと" eyebrow="THE FOUR GAPS">
+          {data.gaps.length > 0 ? (
+            <div className="gap-list">
+              {data.gaps.slice(0, 4).map((gap) => (
+                <div key={gap.label}>
+                  <span>{gap.label}</span>
+                  <strong>{gap.value}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>必須条件はすべて整いました。</p>
+          )}
+        </Card>
+
+        <Card title="今週の活動" eyebrow="WEEKLY LIFE XP">
+          <div className="chart-sm weekly-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.weeklyActivity}>
+                <CartesianGrid vertical={false} opacity={0.16} />
+                <XAxis dataKey="day" tickLine={false} axisLine={false} />
+                <YAxis hide domain={[0, 'auto']} />
+                <Tooltip formatter={(value) => `${Number(value)} XP`} />
+                <Bar
+                  dataKey="xp"
+                  name="Life XP"
+                  fill="#4fb8b2"
+                  radius={[6, 6, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <p>
+            今週 +{data.weeklyActivity.reduce((sum, day) => sum + day.xp, 0)}{' '}
+            XP。 今週も直島に近づきました。
+          </p>
+        </Card>
+
         <Card title="島時間" eyebrow="NAOSHIMA NOW">
           <div className="sun-times">
             <div>
@@ -270,13 +370,29 @@ function DashboardPage() {
           </div>
         </Card>
 
-        <Card title="6つの移住条件" eyebrow="WHAT IS MISSING" className="wide">
+        <Card
+          title="6つの移住条件"
+          eyebrow="WHAT IS MISSING"
+          className="wide"
+          action={
+            data.activeFocus ? (
+              <Badge tone="gold">
+                FOCUS: {String(data.activeFocus.category)}
+              </Badge>
+            ) : null
+          }
+        >
           {Object.entries(data.readiness.categories).map(([key, value]) => (
-            <ProgressBar
+            <div
               key={key}
-              label={categoryLabels[key] ?? key}
-              value={value}
-            />
+              className={
+                String(data.activeFocus?.category ?? '') === key
+                  ? 'focused-progress'
+                  : undefined
+              }
+            >
+              <ProgressBar label={categoryLabels[key] ?? key} value={value} />
+            </div>
           ))}
           <Link to="/journey" className="text-link">
             条件を詳しく見る <ArrowRight size={14} />
@@ -383,7 +499,52 @@ function DashboardPage() {
           </Link>
         </Card>
 
-        <Card title="直島からの一枚" eyebrow="RANDOM NAOSHIMA">
+        <Card title="Action History" eyebrow="RECENT STEPS">
+          {data.actions.length === 0 ? (
+            <p>最初の一歩を完了すると、ここに積み重ねが残ります。</p>
+          ) : (
+            <ol className="action-history">
+              {data.actions.slice(0, 8).map((action) => (
+                <li key={action.id}>
+                  <span aria-hidden="true" />
+                  <div>
+                    <strong>{action.title}</strong>
+                    <small>
+                      {new Date(action.occurredAt).toLocaleDateString('ja-JP')}
+                      {action.amount != null
+                        ? ` · ${action.amount > 0 ? '+' : ''}${action.amount}`
+                        : ''}
+                    </small>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+
+        <Card title="Recent Achievements" eyebrow="PROOF OF PROGRESS">
+          {recentAchievements.length === 0 ? (
+            <p>最初のMissionを完了すると、ここに称号が残ります。</p>
+          ) : (
+            <div className="recent-achievements">
+              {recentAchievements.map((achievement) => (
+                <div key={achievement.id}>
+                  <Sparkles />
+                  <span>
+                    <strong>
+                      {achievement.definition?.title ?? 'Achievement'}
+                    </strong>
+                    <small>
+                      {achievement.unlockedAt.toLocaleDateString('ja-JP')}
+                    </small>
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card title="ランダム直島" eyebrow="PHOTO · MEMORY · PLACE · WHY">
           {data.randomNaoshima?.kind === 'PHOTO' &&
           'imageUrl' in data.randomNaoshima.value ? (
             <img
@@ -391,12 +552,42 @@ function DashboardPage() {
               src={String(data.randomNaoshima.value.imageUrl)}
               alt={String(data.randomNaoshima.value.caption ?? '直島の写真')}
             />
+          ) : data.randomNaoshima?.kind === 'MEMORY' ? (
+            <div className="quote-card">
+              <Waves />
+              <strong>{data.randomNaoshima.value.title}</strong>
+              <p>{data.randomNaoshima.value.description}</p>
+            </div>
+          ) : data.randomNaoshima?.kind === 'PLACE' ? (
+            <div className="quote-card">
+              <MapPin />
+              <strong>{String(data.randomNaoshima.value.name)}</strong>
+              <p>
+                {String(
+                  data.randomNaoshima.value.description ?? 'お気に入りの場所',
+                )}
+              </p>
+            </div>
+          ) : data.randomNaoshima?.kind === 'MESSAGE' ? (
+            <div className="quote-card">
+              <Sparkles />
+              <strong>{String(data.randomNaoshima.value.type)}</strong>
+              <p>{String(data.randomNaoshima.value.content)}</p>
+            </div>
+          ) : data.randomNaoshima?.kind === 'CARD' ? (
+            <div className="quote-card">
+              <Sparkles />
+              <strong>{data.randomNaoshima.value.title}</strong>
+              <p>{data.randomNaoshima.value.content}</p>
+            </div>
           ) : (
             <div className="quote-card">
               <Waves />
               <p>
-                {data.reasons[0]?.content ??
-                  '仕事が終わったあとに、海を歩ける生活へ。'}
+                {data.randomNaoshima?.kind === 'REASON'
+                  ? data.randomNaoshima.value.content
+                  : (data.reasons[0]?.content ??
+                    '仕事が終わったあとに、海を歩ける生活へ。')}
               </p>
             </div>
           )}
@@ -430,6 +621,19 @@ function DashboardPage() {
               {data.reasons[0]?.content ??
                 '直島で暮らしたいと思った、その原点を忘れない。'}
             </blockquote>
+            {data.extras.originStories?.[0] ? (
+              <p className="emergency-origin">
+                <strong>
+                  {String(data.extras.originStories[0].title ?? '原点')}
+                </strong>
+                {String(data.extras.originStories[0].story ?? '')}
+              </p>
+            ) : null}
+            {data.actions.at(-1) ? (
+              <p className="emergency-first-step">
+                最初の記録: {data.actions.at(-1)?.title}
+              </p>
+            ) : null}
             <div className="emergency-stats">
               <span>
                 <Sparkles />
@@ -448,7 +652,8 @@ function DashboardPage() {
                 className="button primary"
                 onClick={() => {
                   setEmergency(false)
-                  finishTodayStep()
+                  const mission = data.minimumMission
+                  if (mission) finishMission(mission)
                 }}
               >
                 <Footprints />

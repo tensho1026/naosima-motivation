@@ -29,38 +29,64 @@ const navItems = [
   { to: '/settings', label: 'Settings', icon: CircleUserRound },
 ] as const
 
+const mobileNavItems = [
+  { to: '/', label: 'Home', icon: LayoutDashboard },
+  { to: '/journey', label: 'Journey', icon: Compass },
+  { to: '/missions', label: 'Missions', icon: CalendarCheck2 },
+  { to: '/future', label: 'Future', icon: Flag },
+  { to: '/settings', label: 'More', icon: CircleUserRound },
+] as const
+
 export default function Header() {
   return (
-    <header className="app-header">
-      <div className="header-inner">
-        <Link to="/" className="brand">
-          <span className="brand-mark">
-            <Compass size={19} />
-          </span>
-          <span>
-            <strong>Naoshima Bound</strong>
-            <small>MY ISLAND JOURNEY</small>
-          </span>
-        </Link>
-        <nav className="main-nav" aria-label="メインナビゲーション">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className="nav-link"
-                activeProps={{ className: 'nav-link is-active' }}
-                activeOptions={{ exact: item.to === '/' }}
-              >
-                <Icon size={16} />
-                <span>{item.label}</span>
-              </Link>
-            )
-          })}
-        </nav>
-        <ThemeToggle />
-      </div>
-    </header>
+    <>
+      <header className="app-header">
+        <div className="header-inner">
+          <Link to="/" className="brand">
+            <span className="brand-mark">
+              <Compass size={19} />
+            </span>
+            <span>
+              <strong>Naoshima Bound</strong>
+              <small>MY ISLAND JOURNEY</small>
+            </span>
+          </Link>
+          <nav className="main-nav" aria-label="メインナビゲーション">
+            {navItems.map((item) => {
+              const Icon = item.icon
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className="nav-link"
+                  activeProps={{ className: 'nav-link is-active' }}
+                  activeOptions={{ exact: item.to === '/' }}
+                >
+                  <Icon size={16} />
+                  <span>{item.label}</span>
+                </Link>
+              )
+            })}
+          </nav>
+          <ThemeToggle />
+        </div>
+      </header>
+      <nav className="mobile-nav" aria-label="モバイルナビゲーション">
+        {mobileNavItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              activeProps={{ className: 'is-active' }}
+              activeOptions={{ exact: item.to === '/' }}
+            >
+              <Icon size={19} />
+              <span>{item.label}</span>
+            </Link>
+          )
+        })}
+      </nav>
+    </>
   )
 }

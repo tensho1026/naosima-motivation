@@ -30,17 +30,40 @@ const conditions: MigrationCondition[] = [
 describe('readiness service', () => {
   it('uses weighted condition progress and zero for empty categories', () => {
     const result = calculateCategoryProgress(conditions)
-    expect(result.MONEY).toBe(50)
+    expect(result.MONEY).toBe(0)
     expect(result.WORK).toBe(100)
     expect(result.SKILL).toBe(0)
   })
 
   it('applies the six category weights and clamps the result', () => {
-    expect(calculateReadiness(conditions).overall).toBe(37.5)
+    expect(calculateReadiness(conditions).overall).toBe(25)
   })
 
   it('distinguishes required-condition readiness', () => {
-    expect(calculateReadyStatus(conditions)).toBe('ALMOST_READY')
+    expect(calculateReadyStatus([])).toBe('NOT_READY')
+    expect(calculateReadyStatus(conditions)).toBe('NOT_READY')
+    expect(
+      calculateReadyStatus([
+        ...conditions.map((condition) => ({
+          ...condition,
+          completed: true,
+        })),
+        {
+          title: '生活',
+          category: 'LIFESTYLE',
+          completed: true,
+          required: true,
+          weight: 1,
+        },
+        {
+          title: 'つながり',
+          category: 'CONNECTION',
+          completed: false,
+          required: true,
+          weight: 1,
+        },
+      ]),
+    ).toBe('ALMOST_READY')
     expect(
       calculateReadyStatus(
         conditions.map((condition) => ({ ...condition, completed: true })),

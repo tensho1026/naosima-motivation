@@ -5,3 +5,4 @@ dist
 drizzle
 src/routeTree.gen.ts
 pnpm-lock.yaml
+AGENTS.md

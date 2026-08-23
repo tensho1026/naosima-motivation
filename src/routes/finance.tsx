@@ -1,6 +1,7 @@
 import { useServerFn } from '@tanstack/react-start'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { PiggyBank, Trash2, TrendingUp, WalletCards } from 'lucide-react'
+import { differenceInCalendarMonths } from 'date-fns'
 import { useState } from 'react'
 import {
   Bar,
@@ -34,6 +35,7 @@ import {
   updateFinanceSettings,
 } from '#/server/core.functions'
 import { getDashboard } from '#/server/dashboard.functions'
+import { monthlySavingHistory } from '#/services/finance.service'
 
 export const Route = createFileRoute('/finance')({
   loader: () => getDashboard(),
@@ -47,6 +49,14 @@ function FinancePage() {
   const router = useRouter()
   const { notify } = useToast()
   const [pending, setPending] = useState(false)
+  const sliderMin = Math.max(new Date().getFullYear() + 1, 2027)
+  const sliderMax = Math.max(sliderMin + 5, 2032)
+  const configuredYear = Number(
+    data.settings?.migrationTargetDate?.slice(0, 4) ?? sliderMin,
+  )
+  const [moveYear, setMoveYear] = useState(
+    Math.min(Math.max(configuredYear, sliderMin), sliderMax),
+  )
   const updateSettings = useServerFn(updateFinanceSettings)
   const addSaving = useServerFn(createSavingTransaction)
   const removeSaving = useServerFn(deleteSavingTransaction)
@@ -75,10 +85,9 @@ function FinancePage() {
   const savingPercent = data.finance
     ? (data.finance.currentSavings / data.finance.targetSavings) * 100
     : 0
-  const chartData = [...data.savings].reverse().map((row, index) => ({
-    date: row.date.slice(5),
-    amount: row.amount * (row.type === 'DEPOSIT' ? 1 : -1),
-    index,
+  const chartData = monthlySavingHistory(data.savings).map((row) => ({
+    date: row.month,
+    amount: row.amount,
   }))
   const scenarioChart = data.scenarios.map((scenario) => ({
     name: scenario.name,
@@ -86,6 +95,20 @@ function FinancePage() {
     expenses: scenario.monthlyExpenses,
     saving: scenario.monthlySaving,
   }))
+  const sliderTargetDate = `${moveYear}-04-01`
+  const sliderMonths = Math.max(
+    differenceInCalendarMonths(
+      new Date(`${sliderTargetDate}T00:00:00`),
+      new Date(),
+    ),
+    1,
+  )
+  const sliderRequiredMonthly = Math.ceil(
+    Math.max(
+      (data.finance?.targetSavings ?? 0) - (data.finance?.currentSavings ?? 0),
+      0,
+    ) / sliderMonths,
+  )
   return (
     <Page
       title="Finance"
@@ -341,7 +364,10 @@ function FinancePage() {
             </div>
           </form>
           {data.lifeSimulations.map((simulation) => (
-            <article className="simulation-result" key={simulation.id}>
+            <article
+              className={`simulation-result ${simulation.result.remaining < 0 ? 'deficit' : ''}`}
+              key={simulation.id}
+            >
               <WalletCards />
               <div>
                 <strong>{simulation.name}</strong>
@@ -349,8 +375,16 @@ function FinancePage() {
                   収入 {yen(simulation.result.income)} − 支出{' '}
                   {yen(simulation.result.expenses)}
                 </p>
+                <p>
+                  想定貯金 {yen(simulation.result.plannedSaving)} ·{' '}
+                  {simulation.result.buffer >= 0 ? '余裕' : '不足'}{' '}
+                  {yen(Math.abs(simulation.result.buffer))}
+                </p>
               </div>
-              <strong>{yen(simulation.result.remaining)} 残る</strong>
+              <strong>
+                {simulation.result.remaining < 0 ? '赤字 ' : '残り '}
+                {yen(Math.abs(simulation.result.remaining))}
+              </strong>
             </article>
           ))}
         </Card>
@@ -457,14 +491,24 @@ function FinancePage() {
         <Card title="What If / 移住日スライダー" eyebrow="MOVE THE DATE">
           <div className="what-if-large">
             <PiggyBank />
-            <p>
-              移住目標日を変えた場合の必要月額は、Settingsの目標日と残額から自動で再計算されます。
-            </p>
+            <label htmlFor="move-year">
+              仮の移住年 <strong>{moveYear}年</strong>
+            </label>
+            <input
+              id="move-year"
+              type="range"
+              min={sliderMin}
+              max={sliderMax}
+              step="1"
+              value={moveYear}
+              onChange={(event) => setMoveYear(Number(event.target.value))}
+            />
             <strong>
-              現在必要: {yen(data.reverseCalendar.requiredMonthlySaving)} / 月
+              {sliderTargetDate}まで毎月 {yen(sliderRequiredMonthly)}
             </strong>
             <p>
-              毎月2万円を追加すると、達成予測は前のDashboardですぐ比較できます。
+              残り{sliderMonths}
+              か月で資金目標を達成する試算です。保存済みの目標日は変更しません。
             </p>
           </div>
         </Card>

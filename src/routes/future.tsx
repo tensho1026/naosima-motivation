@@ -1,6 +1,14 @@
 import { useServerFn } from '@tanstack/react-start'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { BookOpen, Check, Clock3, Trash2 } from 'lucide-react'
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Clock3,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useState } from 'react'
 
 import { ExtraResourcePanel } from '#/components/ui/ExtraResourcePanel'
@@ -26,6 +34,7 @@ import {
   deleteIdealDayItem,
   deleteReason,
   getFutureHub,
+  reorderIdealDayItems,
   updateBucketItem,
   updateIdealWeek,
 } from '#/server/content.functions'
@@ -44,6 +53,7 @@ function FuturePage() {
   const [pending, setPending] = useState(false)
   const addDay = useServerFn(createIdealDayItem)
   const removeDay = useServerFn(deleteIdealDayItem)
+  const reorderDay = useServerFn(reorderIdealDayItems)
   const replaceWeek = useServerFn(updateIdealWeek)
   const addDiary = useServerFn(createFutureDiary)
   const removeDiary = useServerFn(deleteFutureDiary)
@@ -72,6 +82,28 @@ function FuturePage() {
     } finally {
       setPending(false)
     }
+  }
+  async function moveIdealDay(index: number, direction: -1 | 1) {
+    const target = index + direction
+    if (target < 0 || target >= data.idealDay.length) return
+    const ids = data.idealDay.map((item) => item.id)
+    ;[ids[index], ids[target]] = [ids[target], ids[index]]
+    await run(() => reorderDay({ data: { ids } }), '理想の1日を並び替えました')
+  }
+  async function removeIdealWeekItem(id: string) {
+    if (!window.confirm('未来の一週間から削除しますか？')) return
+    const items = data.idealWeek
+      .filter((item) => item.id !== id)
+      .map(({ id, weekday, title, sortOrder }) => ({
+        id,
+        weekday,
+        title,
+        sortOrder,
+      }))
+    await run(
+      () => replaceWeek({ data: { items } }),
+      '未来の一週間を更新しました',
+    )
   }
   const completedDreams = data.bucket.filter((item) => item.completed).length
   return (
@@ -143,22 +175,41 @@ function FuturePage() {
             </div>
           </form>
           <div className="day-timeline">
-            {data.idealDay.map((item) => (
+            {data.idealDay.map((item, index) => (
               <article key={item.id}>
                 <time>{item.time}</time>
                 <span />
                 <strong>{item.title}</strong>
-                <button
-                  className="icon-button danger"
-                  onClick={() =>
-                    run(
-                      () => removeDay({ data: { id: item.id } }),
-                      '項目を削除しました',
-                    )
-                  }
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="row-actions">
+                  <button
+                    className="icon-button"
+                    aria-label="上へ移動"
+                    disabled={index === 0}
+                    onClick={() => moveIdealDay(index, -1)}
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    aria-label="下へ移動"
+                    disabled={index === data.idealDay.length - 1}
+                    onClick={() => moveIdealDay(index, 1)}
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                  <button
+                    className="icon-button danger"
+                    onClick={() =>
+                      window.confirm('理想の1日の項目を削除しますか？') &&
+                      run(
+                        () => removeDay({ data: { id: item.id } }),
+                        '項目を削除しました',
+                      )
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -217,7 +268,16 @@ function FuturePage() {
                 {data.idealWeek
                   .filter((item) => item.weekday === index)
                   .map((item) => (
-                    <span key={item.id}>{item.title}</span>
+                    <span key={item.id}>
+                      {item.title}
+                      <button
+                        className="week-remove"
+                        aria-label={`${item.title}を削除`}
+                        onClick={() => removeIdealWeekItem(item.id)}
+                      >
+                        <X size={11} />
+                      </button>
+                    </span>
                   ))}
               </div>
             ))}
@@ -274,6 +334,7 @@ function FuturePage() {
                   <button
                     className="icon-button danger"
                     onClick={() =>
+                      window.confirm('Future Diaryを削除しますか？') &&
                       run(
                         () => removeDiary({ data: { id: diary.id } }),
                         '日記を削除しました',
@@ -362,6 +423,7 @@ function FuturePage() {
                 <button
                   className="icon-button danger"
                   onClick={() =>
+                    window.confirm('未来リストから削除しますか？') &&
                     run(
                       () => removeBucket({ data: { id: item.id } }),
                       '削除しました',
@@ -408,6 +470,7 @@ function FuturePage() {
                 <button
                   className="icon-button danger"
                   onClick={() =>
+                    window.confirm('この移住理由を削除しますか？') &&
                     run(
                       () => removeReason({ data: { id: reason.id } }),
                       '理由を削除しました',

@@ -25,6 +25,7 @@ import {
 import { useToast } from '#/components/ui/Toast'
 import {
   createMonthlyReview,
+  getMonthlySummary,
   getReviewsHub,
   updateMonthlyReview,
 } from '#/server/content.functions'
@@ -32,11 +33,12 @@ import { getDashboard } from '#/server/dashboard.functions'
 
 export const Route = createFileRoute('/reviews')({
   loader: async () => {
-    const [dashboard, reviews] = await Promise.all([
+    const [dashboard, reviews, summary] = await Promise.all([
       getDashboard(),
       getReviewsHub(),
+      getMonthlySummary({ data: { month: currentMonth() } }),
     ])
-    return { dashboard, ...reviews }
+    return { dashboard, summary, ...reviews }
   },
   component: ReviewsPage,
   pendingComponent: LoadingPage,
@@ -89,35 +91,27 @@ function ReviewsPage() {
     >
       <section className="stats-grid page-stats">
         <Stat
-          label="今月の準備度"
-          value={`${Math.round(data.dashboard.readiness.overall)}%`}
-          detail={
-            previous
-              ? `前回 ${Math.round(previous.readiness)}%`
-              : '最初のSnapshotを残そう'
-          }
+          label="今月のXP"
+          value={`+${data.summary.gainedXp}`}
+          detail={`Skill XP +${data.summary.gainedSkillXp}`}
           tone="sea"
         />
         <Stat
-          label="現在の貯金"
-          value={`${(data.dashboard.finance?.currentSavings ?? 0).toLocaleString()}円`}
-          detail={
-            previous
-              ? `前回 ${(previous.savings ?? 0).toLocaleString()}円`
-              : 'Before / After'
-          }
+          label="今月の貯金"
+          value={`${data.summary.savedAmount >= 0 ? '+' : ''}${data.summary.savedAmount.toLocaleString()}円`}
+          detail={`現在 ${(data.dashboard.finance?.currentSavings ?? 0).toLocaleString()}円`}
           tone="green"
         />
         <Stat
-          label="総XP"
-          value={data.dashboard.totalXp}
-          detail={previous ? `前回 ${previous.totalXp}` : 'Life XP'}
+          label="完了Mission"
+          value={data.summary.completedMissions}
+          detail={`総XP ${data.dashboard.totalXp}`}
           tone="gold"
         />
         <Stat
-          label="レビュー"
-          value={`${data.reviews.length}か月`}
-          detail="積み重ねた振り返り"
+          label="Journey"
+          value={`+${(data.summary.gainedXp / 10).toFixed(1)} km`}
+          detail={`準備度 ${Math.round(data.summary.readiness.overall)}%`}
           tone="coral"
         />
       </section>

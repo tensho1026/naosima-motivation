@@ -6,6 +6,7 @@ import {
   calculateRunwayMonths,
   calculateSavingForecast,
   calculateScenario,
+  averageRecentMonthlySaving,
 } from '#/services/finance.service'
 import {
   calculateCountdown,
@@ -21,6 +22,7 @@ import {
   calculateVisitStats,
   lifeRatio,
   reverseCalendar,
+  weeklyXpActivity,
 } from '#/services/insights.service'
 import {
   calculateReadiness,
@@ -59,6 +61,7 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(
       photos,
       reasons,
       bucket,
+      futureDiaries,
       nextVisit,
       extras,
     ] = await Promise.all([
@@ -80,6 +83,7 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(
       content.listPhotos(),
       content.listReasons(),
       content.listBucketItems(),
+      content.listFutureDiaries(),
       content.listNextVisitItems(),
       content.listExtras([
         'timeInvestmentLogs',
@@ -106,19 +110,7 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(
       totalXp,
       settings?.virtualJourneyDistance ?? 1_000,
     )
-    const averageMonthlySaving =
-      savings.length > 0
-        ? savings
-            .slice(0, 3)
-            .reduce(
-              (sum, transaction) =>
-                sum +
-                (transaction.type === 'DEPOSIT'
-                  ? transaction.amount
-                  : -transaction.amount),
-              0,
-            ) / Math.min(savings.length, 3)
-        : undefined
+    const averageMonthlySaving = averageRecentMonthlySaving(savings)
     const forecast = finance
       ? calculateSavingForecast({
           currentSavings: finance.currentSavings,
@@ -181,13 +173,87 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(
       incomplete.sort((a, b) => b.impactScore - a.impactScore)[0] ??
       null
     const minimumMission = incomplete.find((mission) => mission.minimumTitle)
+    const incompleteRequired = conditions.filter(
+      (condition) => condition.required && !condition.completed,
+    ).length
+    const nextSideIncomeGoal = career.goals
+      .filter((goal) => goal.monthlyAmount > independentIncome)
+      .sort((a, b) => a.monthlyAmount - b.monthlyAmount)[0]
+    const gaps = [
+      finance && finance.targetSavings > finance.currentSavings
+        ? {
+            label: '移住資金',
+            value: `あと${(finance.targetSavings - finance.currentSavings).toLocaleString('ja-JP')}円`,
+          }
+        : null,
+      nextSideIncomeGoal
+        ? {
+            label: '個人収入',
+            value: `あと${(nextSideIncomeGoal.monthlyAmount - independentIncome).toLocaleString('ja-JP')}円/月`,
+          }
+        : null,
+      countdown.days > 0
+        ? {
+            label: '目標日',
+            value: `あと${Math.ceil(countdown.days / 30)}か月`,
+          }
+        : null,
+      incompleteRequired > 0
+        ? { label: '必須条件', value: `あと${incompleteRequired}条件` }
+        : null,
+    ].filter((gap): gap is { label: string; value: string } => gap != null)
+    const today = new Date().toISOString().slice(0, 10)
+    const activeFocus = (extras.focusSettings ?? []).find(
+      (row) =>
+        String(row.startDate ?? '') <= today &&
+        String(row.endDate ?? '') >= today,
+    )
+    const visibleMessages = (extras.selfMessages ?? []).filter(
+      (row) => !row.revealAt || String(row.revealAt) <= today,
+    )
+    const unlockedAchievementIds = new Set(
+      achievements.unlocked.map((row) => row.achievementId),
+    )
     const randomPool = [
       ...photos.map((photo) => ({ kind: 'PHOTO' as const, value: photo })),
       ...memories.map((memory) => ({ kind: 'MEMORY' as const, value: memory })),
       ...reasons.map((reason) => ({ kind: 'REASON' as const, value: reason })),
+      ...(extras.favoritePlaces ?? []).map((place) => ({
+        kind: 'PLACE' as const,
+        value: place,
+      })),
+      ...visibleMessages.map((message) => ({
+        kind: 'MESSAGE' as const,
+        value: message,
+      })),
+      ...futureDiaries.map((diary) => ({
+        kind: 'CARD' as const,
+        value: { title: diary.title, content: diary.content },
+      })),
+      ...bucket.map((item) => ({
+        kind: 'CARD' as const,
+        value: { title: item.title, content: item.description ?? item.kind },
+      })),
+      ...achievements.definitions
+        .filter((definition) => unlockedAchievementIds.has(definition.id))
+        .map((definition) => ({
+          kind: 'CARD' as const,
+          value: {
+            title: `Achievement: ${definition.title}`,
+            content: definition.description,
+          },
+        })),
+      {
+        kind: 'CARD' as const,
+        value: {
+          title: `直島まであと${countdown.days.toLocaleString('ja-JP')}日`,
+          content: `今日の一歩で、残り${Math.round(journey.remainingKm)}kmを少し縮める。`,
+        },
+      },
     ]
-    const randomIndex =
-      Math.floor(Date.now() / 86_400_000) % Math.max(randomPool.length, 1)
+    const randomIndex = Math.floor(
+      Math.random() * Math.max(randomPool.length, 1),
+    )
 
     return {
       settings,
@@ -204,9 +270,14 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(
       missions,
       todayStep,
       minimumMission,
+      activeFocus,
       noZeroWeek: calculateNoZeroWeek(actions),
       streak: calculateStreak(actions),
       heatmap: activityHeatmap(actions),
+      weeklyActivity: weeklyXpActivity(
+        actions.filter((action) => action.type === 'MISSION_COMPLETED'),
+      ),
+      gaps,
       finance,
       savings,
       forecast,

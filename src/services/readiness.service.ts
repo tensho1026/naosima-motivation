@@ -19,18 +19,7 @@ function clampPercent(value: number) {
 }
 
 function effectiveCompletion(condition: MigrationCondition) {
-  if (condition.completed) return 1
-  if (
-    condition.targetValue != null &&
-    condition.targetValue > 0 &&
-    condition.currentValue != null
-  ) {
-    return Math.min(
-      Math.max(condition.currentValue / condition.targetValue, 0),
-      1,
-    )
-  }
-  return 0
+  return condition.completed ? 1 : 0
 }
 
 export function calculateCategoryProgress(
@@ -72,10 +61,8 @@ export function calculateReadyStatus(
   conditions: MigrationCondition[],
 ): ReadinessStatus {
   const required = conditions.filter((condition) => condition.required)
-  if (
-    required.length === 0 ||
-    required.every((condition) => condition.completed)
-  ) {
+  if (required.length === 0) return 'NOT_READY'
+  if (required.every((condition) => condition.completed)) {
     return 'READY'
   }
   const ratio =

@@ -7,6 +7,7 @@ export type AchievementFacts = {
   visitCount: number
   activityDays: number
   sideIncome: number
+  remoteWork: number
 }
 
 export type AchievementRule = {
@@ -20,6 +21,7 @@ export type AchievementRule = {
     | 'VISIT_COUNT'
     | 'ACTIVITY_DAYS'
     | 'SIDE_INCOME'
+    | 'REMOTE_WORK'
   threshold: number
 }
 
@@ -32,6 +34,7 @@ const factByKind: Record<AchievementRule['kind'], keyof AchievementFacts> = {
   VISIT_COUNT: 'visitCount',
   ACTIVITY_DAYS: 'activityDays',
   SIDE_INCOME: 'sideIncome',
+  REMOTE_WORK: 'remoteWork',
 }
 
 export function findUnlockedAchievements(

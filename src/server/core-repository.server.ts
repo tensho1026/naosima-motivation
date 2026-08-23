@@ -1,4 +1,13 @@
-import { and, asc, desc, eq, isNull, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from 'drizzle-orm'
 
 import { getDatabase } from '#/db/index.server'
 import {
@@ -19,11 +28,32 @@ import {
   userAchievements,
   xpTransactions,
 } from '#/db/schema'
+import { requiredXp } from '#/services/xp.service'
 
 type ConditionInput = typeof migrationConditions.$inferInsert
 type MissionInput = typeof missions.$inferInsert
 type RoadmapInput = typeof roadmapItems.$inferInsert
 type SkillInput = typeof skills.$inferInsert
+
+function levelForXp(xp: number, targetLevel: number) {
+  let level = 0
+  for (let candidate = 1; candidate <= targetLevel; candidate += 1) {
+    if (xp < requiredXp(candidate)) break
+    level = candidate
+  }
+  return level
+}
+
+function statusForLevel(
+  level: number,
+  targetLevel: number,
+  currentStatus: 'LOCKED' | 'LEARNING' | 'ACHIEVED',
+) {
+  if (targetLevel > 0 && level >= targetLevel) return 'ACHIEVED' as const
+  return currentStatus === 'LOCKED'
+    ? ('LOCKED' as const)
+    : ('LEARNING' as const)
+}
 
 export class CoreRepository {
   private readonly db = getDatabase()
@@ -186,6 +216,13 @@ export class CoreRepository {
       )
       .get()
     const now = new Date()
+    const linkedSkill = mission.skillId
+      ? await this.db
+          .select()
+          .from(skills)
+          .where(eq(skills.id, mission.skillId))
+          .get()
+      : null
     const missionUpdate = this.db
       .update(missions)
       .set({ completed: true, completedAt: now, updatedAt: now })
@@ -212,12 +249,57 @@ export class CoreRepository {
       sourceId: mission.id,
       occurredAt: now,
     })
-    if (mission.skillId) {
+    if (mission.skillId && linkedSkill) {
+      const nextSkillXp = linkedSkill.xp + mission.xp
+      const nextSkillLevel = levelForXp(nextSkillXp, linkedSkill.targetLevel)
       const skillUpdate = this.db
         .update(skills)
-        .set({ xp: sql`${skills.xp} + ${mission.xp}`, updatedAt: now })
+        .set({
+          xp: nextSkillXp,
+          level: nextSkillLevel,
+          status: statusForLevel(
+            nextSkillLevel,
+            linkedSkill.targetLevel,
+            linkedSkill.status,
+          ),
+          updatedAt: now,
+        })
         .where(eq(skills.id, mission.skillId))
-      await this.db.batch([missionUpdate, xpWrite, action, skillUpdate])
+      const matchingConditions = await this.db
+        .select({
+          id: migrationConditions.id,
+          title: migrationConditions.title,
+        })
+        .from(migrationConditions)
+        .where(eq(migrationConditions.category, 'SKILL'))
+        .all()
+      const matchingIds = matchingConditions
+        .filter((condition) =>
+          condition.title
+            .toLocaleLowerCase('ja')
+            .includes(linkedSkill.name.toLocaleLowerCase('ja')),
+        )
+        .map((condition) => condition.id)
+      if (matchingIds.length > 0) {
+        const conditionUpdate = this.db
+          .update(migrationConditions)
+          .set({
+            currentValue: nextSkillLevel,
+            completed: sql<boolean>`${nextSkillLevel} >= ${migrationConditions.targetValue}`,
+            completedAt: sql`case when ${nextSkillLevel} >= ${migrationConditions.targetValue} then coalesce(${migrationConditions.completedAt}, unixepoch()) else null end`,
+            updatedAt: now,
+          })
+          .where(inArray(migrationConditions.id, matchingIds))
+        await this.db.batch([
+          missionUpdate,
+          xpWrite,
+          action,
+          skillUpdate,
+          conditionUpdate,
+        ])
+      } else {
+        await this.db.batch([missionUpdate, xpWrite, action, skillUpdate])
+      }
     } else {
       await this.db.batch([missionUpdate, xpWrite, action])
     }
@@ -233,6 +315,13 @@ export class CoreRepository {
     if (!mission) throw new Error('Mission not found')
     if (!mission.completed) return mission
     const now = new Date()
+    const linkedSkill = mission.skillId
+      ? await this.db
+          .select()
+          .from(skills)
+          .where(eq(skills.id, mission.skillId))
+          .get()
+      : null
     const missionUpdate = this.db
       .update(missions)
       .set({ completed: false, completedAt: null, updatedAt: now })
@@ -256,12 +345,57 @@ export class CoreRepository {
       sourceId: mission.id,
       occurredAt: now,
     })
-    if (mission.skillId) {
+    if (mission.skillId && linkedSkill) {
+      const nextSkillXp = Math.max(linkedSkill.xp - mission.xp, 0)
+      const nextSkillLevel = levelForXp(nextSkillXp, linkedSkill.targetLevel)
       const skillUpdate = this.db
         .update(skills)
-        .set({ xp: sql`max(${skills.xp} - ${mission.xp}, 0)`, updatedAt: now })
+        .set({
+          xp: nextSkillXp,
+          level: nextSkillLevel,
+          status: statusForLevel(
+            nextSkillLevel,
+            linkedSkill.targetLevel,
+            linkedSkill.status,
+          ),
+          updatedAt: now,
+        })
         .where(eq(skills.id, mission.skillId))
-      await this.db.batch([missionUpdate, xpRollback, action, skillUpdate])
+      const matchingConditions = await this.db
+        .select({
+          id: migrationConditions.id,
+          title: migrationConditions.title,
+        })
+        .from(migrationConditions)
+        .where(eq(migrationConditions.category, 'SKILL'))
+        .all()
+      const matchingIds = matchingConditions
+        .filter((condition) =>
+          condition.title
+            .toLocaleLowerCase('ja')
+            .includes(linkedSkill.name.toLocaleLowerCase('ja')),
+        )
+        .map((condition) => condition.id)
+      if (matchingIds.length > 0) {
+        const conditionUpdate = this.db
+          .update(migrationConditions)
+          .set({
+            currentValue: nextSkillLevel,
+            completed: sql<boolean>`${nextSkillLevel} >= ${migrationConditions.targetValue}`,
+            completedAt: sql`case when ${nextSkillLevel} >= ${migrationConditions.targetValue} then coalesce(${migrationConditions.completedAt}, unixepoch()) else null end`,
+            updatedAt: now,
+          })
+          .where(inArray(migrationConditions.id, matchingIds))
+        await this.db.batch([
+          missionUpdate,
+          xpRollback,
+          action,
+          skillUpdate,
+          conditionUpdate,
+        ])
+      } else {
+        await this.db.batch([missionUpdate, xpRollback, action, skillUpdate])
+      }
     } else {
       await this.db.batch([missionUpdate, xpRollback, action])
     }
@@ -276,15 +410,37 @@ export class CoreRepository {
     input: Omit<typeof financeSettings.$inferInsert, 'id'>,
   ) {
     const current = await this.getFinanceSettings()
+    const now = new Date()
+    const conditionUpdate = this.db
+      .update(migrationConditions)
+      .set({
+        currentValue: input.currentSavings,
+        completed: sql<boolean>`${input.currentSavings} >= ${migrationConditions.targetValue}`,
+        completedAt: sql`case when ${input.currentSavings} >= ${migrationConditions.targetValue} then coalesce(${migrationConditions.completedAt}, unixepoch()) else null end`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(migrationConditions.category, 'MONEY'),
+          eq(migrationConditions.unit, '円'),
+          isNotNull(migrationConditions.targetValue),
+        ),
+      )
     if (current) {
-      return this.db
-        .update(financeSettings)
-        .set({ ...input, updatedAt: new Date() })
-        .where(eq(financeSettings.id, current.id))
-        .returning()
-        .get()
+      await this.db.batch([
+        this.db
+          .update(financeSettings)
+          .set({ ...input, updatedAt: now })
+          .where(eq(financeSettings.id, current.id)),
+        conditionUpdate,
+      ])
+    } else {
+      await this.db.batch([
+        this.db.insert(financeSettings).values(input),
+        conditionUpdate,
+      ])
     }
-    return this.db.insert(financeSettings).values(input).returning().get()
+    return this.getFinanceSettings()
   }
 
   listSavings() {
@@ -300,7 +456,10 @@ export class CoreRepository {
     if (!settings) throw new Error('Finance settings not found')
     const delta = input.type === 'DEPOSIT' ? input.amount : -input.amount
     const nextSavings = Math.max(settings.currentSavings + delta, 0)
-    const insert = this.db.insert(savingTransactions).values(input)
+    const transactionId = input.id ?? crypto.randomUUID()
+    const insert = this.db
+      .insert(savingTransactions)
+      .values({ ...input, id: transactionId })
     const update = this.db
       .update(financeSettings)
       .set({ currentSavings: nextSavings, updatedAt: new Date() })
@@ -312,9 +471,25 @@ export class CoreRepository {
         (input.type === 'DEPOSIT' ? '移住資金を追加' : '移住資金から減額'),
       amount: delta,
       category: 'MONEY',
+      sourceId: transactionId,
       occurredAt: new Date(),
     })
-    await this.db.batch([insert, update, action])
+    const conditionUpdate = this.db
+      .update(migrationConditions)
+      .set({
+        currentValue: nextSavings,
+        completed: sql`${nextSavings} >= ${migrationConditions.targetValue}`,
+        completedAt: sql`case when ${nextSavings} >= ${migrationConditions.targetValue} then unixepoch() else null end`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(migrationConditions.category, 'MONEY'),
+          eq(migrationConditions.unit, '円'),
+          isNotNull(migrationConditions.targetValue),
+        ),
+      )
+    await this.db.batch([insert, update, action, conditionUpdate])
     return { currentSavings: nextSavings }
   }
 
@@ -329,15 +504,40 @@ export class CoreRepository {
     if (!settings) throw new Error('Finance settings not found')
     const reversal =
       transaction.type === 'DEPOSIT' ? -transaction.amount : transaction.amount
+    const now = new Date()
+    const nextSavings = Math.max(settings.currentSavings + reversal, 0)
     await this.db.batch([
       this.db.delete(savingTransactions).where(eq(savingTransactions.id, id)),
       this.db
         .update(financeSettings)
         .set({
-          currentSavings: Math.max(settings.currentSavings + reversal, 0),
-          updatedAt: new Date(),
+          currentSavings: nextSavings,
+          updatedAt: now,
         })
         .where(eq(financeSettings.id, settings.id)),
+      this.db
+        .update(migrationConditions)
+        .set({
+          currentValue: nextSavings,
+          completed: sql<boolean>`${nextSavings} >= ${migrationConditions.targetValue}`,
+          completedAt: sql`case when ${nextSavings} >= ${migrationConditions.targetValue} then coalesce(${migrationConditions.completedAt}, unixepoch()) else null end`,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(migrationConditions.category, 'MONEY'),
+            eq(migrationConditions.unit, '円'),
+            isNotNull(migrationConditions.targetValue),
+          ),
+        ),
+      this.db.insert(actionLogs).values({
+        type: 'SAVING',
+        title: `資金記録を削除: ${transaction.note ?? transaction.date}`,
+        amount: reversal,
+        category: 'MONEY',
+        sourceId: transaction.id,
+        occurredAt: now,
+      }),
     ])
     return { deleted: true }
   }
@@ -406,13 +606,60 @@ export class CoreRepository {
     return this.db.delete(skills).where(eq(skills.id, id)).returning().get()
   }
 
-  addSkillXp(id: string, amount: number) {
-    return this.db
-      .update(skills)
-      .set({ xp: sql`${skills.xp} + ${amount}`, updatedAt: new Date() })
+  async addSkillXp(id: string, amount: number) {
+    const skill = await this.db
+      .select()
+      .from(skills)
       .where(eq(skills.id, id))
-      .returning()
       .get()
+    if (!skill) throw new Error('Skill not found')
+    const now = new Date()
+    const nextXp = skill.xp + amount
+    const nextLevel = levelForXp(nextXp, skill.targetLevel)
+    const matchingConditions = await this.db
+      .select({ id: migrationConditions.id, title: migrationConditions.title })
+      .from(migrationConditions)
+      .where(eq(migrationConditions.category, 'SKILL'))
+      .all()
+    const matchingIds = matchingConditions
+      .filter((condition) =>
+        condition.title
+          .toLocaleLowerCase('ja')
+          .includes(skill.name.toLocaleLowerCase('ja')),
+      )
+      .map((condition) => condition.id)
+    const skillUpdate = this.db
+      .update(skills)
+      .set({
+        xp: nextXp,
+        level: nextLevel,
+        status: statusForLevel(nextLevel, skill.targetLevel, skill.status),
+        updatedAt: now,
+      })
+      .where(eq(skills.id, id))
+    const action = this.db.insert(actionLogs).values({
+      type: 'SKILL_UP',
+      title: `${skill.name} +${amount} XP`,
+      category: 'SKILL',
+      amount,
+      sourceId: skill.id,
+      occurredAt: now,
+    })
+    if (matchingIds.length > 0) {
+      const conditionUpdate = this.db
+        .update(migrationConditions)
+        .set({
+          currentValue: nextLevel,
+          completed: sql<boolean>`${nextLevel} >= ${migrationConditions.targetValue}`,
+          completedAt: sql`case when ${nextLevel} >= ${migrationConditions.targetValue} then coalesce(${migrationConditions.completedAt}, unixepoch()) else null end`,
+          updatedAt: now,
+        })
+        .where(inArray(migrationConditions.id, matchingIds))
+      await this.db.batch([skillUpdate, action, conditionUpdate])
+    } else {
+      await this.db.batch([skillUpdate, action])
+    }
+    return this.db.select().from(skills).where(eq(skills.id, id)).get()
   }
 
   listCareer() {
@@ -491,6 +738,10 @@ export class CoreRepository {
       .all()
   }
 
+  logAction(input: typeof actionLogs.$inferInsert) {
+    return this.db.insert(actionLogs).values(input).returning().get()
+  }
+
   listAchievements() {
     return Promise.all([
       this.db.select().from(achievementDefinitions).all(),
@@ -511,6 +762,19 @@ export class CoreRepository {
       if (row) unlocked.push(row)
     }
     return unlocked
+  }
+
+  async logAchievements(
+    definitions: Array<{ id: string; title: string; description: string }>,
+  ) {
+    for (const definition of definitions) {
+      await this.db.insert(actionLogs).values({
+        type: 'ACHIEVEMENT',
+        title: `Achievement: ${definition.title}`,
+        description: definition.description,
+        sourceId: definition.id,
+      })
+    }
   }
 
   async totalXp() {

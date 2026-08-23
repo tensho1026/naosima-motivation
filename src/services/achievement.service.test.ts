@@ -19,6 +19,7 @@ describe('achievement service', () => {
         visitCount: 0,
         activityDays: 3,
         sideIncome: 0,
+        remoteWork: 0,
       },
       new Set(['FIRST']),
     )

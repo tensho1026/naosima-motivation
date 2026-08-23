@@ -54,6 +54,22 @@ export function calculateNoZeroWeek(
   return { achieved: actionCount > 0, actionCount }
 }
 
+export function weeklyXpActivity(actions: ActivityLike[], today = new Date()) {
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 })
+  const days = eachDayOfInterval({
+    start: weekStart,
+    end: endOfWeek(today, { weekStartsOn: 1 }),
+  })
+  const labels = ['月', '火', '水', '木', '金', '土', '日']
+  return days.map((date, index) => {
+    const dateKey = format(date, 'yyyy-MM-dd')
+    const xp = actions
+      .filter((action) => format(action.occurredAt, 'yyyy-MM-dd') === dateKey)
+      .reduce((sum, action) => sum + Math.max(action.amount ?? 0, 0), 0)
+    return { date: dateKey, day: labels[index], xp }
+  })
+}
+
 export function calculateVisitStats(visits: VisitLike[], today = new Date()) {
   const durations = visits.map(
     (visit) =>

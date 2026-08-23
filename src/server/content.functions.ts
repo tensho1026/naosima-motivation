@@ -25,6 +25,7 @@ import {
 import { contentRepository } from './content-repository.server'
 import { coreRepository } from './core-repository.server'
 import { idSchema, reorderSchema } from './validation'
+import { checkAndUnlockAchievements } from './achievement-check.server'
 
 const monthSchema = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
@@ -207,7 +208,27 @@ export const getVisits = createServerFn({ method: 'GET' }).handler(() =>
 
 export const createVisit = createServerFn({ method: 'POST' })
   .validator(createVisitSchema)
-  .handler(({ data }) => contentRepository().saveVisit(data))
+  .handler(async ({ data }) => {
+    const content = contentRepository()
+    const visit = await content.saveVisit(data)
+    if (visit) {
+      await content.saveExtra('albums', {
+        title: data.title,
+        description: data.description,
+        visitId: visit.id,
+        coverPhotoId: null,
+      })
+    }
+    await coreRepository().logAction({
+      type: 'VISIT',
+      title: data.title,
+      description: `${data.startDate} → ${data.endDate}`,
+      category: 'NAOSHIMA',
+      sourceId: visit?.id,
+    })
+    await checkAndUnlockAchievements()
+    return visit
+  })
 
 export const updateVisit = createServerFn({ method: 'POST' })
   .validator(updateVisitSchema)
@@ -436,6 +457,14 @@ export const getMonthlySummary = createServerFn({ method: 'GET' })
       gainedXp: monthActions
         .filter((action) => action.type === 'MISSION_COMPLETED')
         .reduce((sum, action) => sum + (action.amount ?? 0), 0),
+      gainedSkillXp: monthActions
+        .filter(
+          (action) =>
+            action.type === 'SKILL_UP' ||
+            (action.type === 'MISSION_COMPLETED' &&
+              action.category === 'SKILL'),
+        )
+        .reduce((sum, action) => sum + Math.max(action.amount ?? 0, 0), 0),
       savedAmount: monthActions
         .filter((action) => action.type === 'SAVING')
         .reduce((sum, action) => sum + (action.amount ?? 0), 0),
@@ -471,6 +500,11 @@ async function saveReviewAndSnapshot(
     skillLevels: Object.fromEntries(
       skillList.map((skill) => [skill.name, skill.level]),
     ),
+  })
+  await core.logAction({
+    type: 'REVIEW',
+    title: `${data.month} 月次レビュー`,
+    description: data.closerToNaoshima || data.goodThings || null,
   })
   return review
 }

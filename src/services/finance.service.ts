@@ -15,6 +15,34 @@ export type LifeSimulationInput = {
   plannedSaving: number
 }
 
+export type SavingLike = {
+  amount: number
+  type: 'DEPOSIT' | 'WITHDRAWAL'
+  date: string
+}
+
+export function monthlySavingHistory(transactions: SavingLike[]) {
+  const totals = new Map<string, number>()
+  for (const transaction of transactions) {
+    const month = transaction.date.slice(0, 7)
+    const delta =
+      transaction.type === 'DEPOSIT' ? transaction.amount : -transaction.amount
+    totals.set(month, (totals.get(month) ?? 0) + delta)
+  }
+  return [...totals.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([month, amount]) => ({ month, amount }))
+}
+
+export function averageRecentMonthlySaving(
+  transactions: SavingLike[],
+  months = 3,
+) {
+  const recent = monthlySavingHistory(transactions).slice(-Math.max(months, 1))
+  if (recent.length === 0) return undefined
+  return recent.reduce((sum, row) => sum + row.amount, 0) / recent.length
+}
+
 export function calculateLifeSimulation(input: LifeSimulationInput) {
   const income = input.salary + input.sideIncome
   const expenses =

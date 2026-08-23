@@ -28,6 +28,30 @@ function AchievementsPage() {
   const unlocked = new Map(
     data.achievements.unlocked.map((row) => [row.achievementId, row]),
   )
+  const independentIncome = data.career.sources
+    .filter((source) => source.active && source.type !== 'SALARY')
+    .reduce((sum, source) => sum + source.monthlyAmount, 0)
+  const currentByKind: Record<string, number> = {
+    MISSION_COUNT: data.missions.filter((item) => item.completed).length,
+    TOTAL_XP: data.totalXp,
+    SAVINGS: data.finance?.currentSavings ?? 0,
+    JOURNEY: data.journey.progressKm,
+    READINESS: data.readiness.overall,
+    VISIT_COUNT: data.visits.length,
+    ACTIVITY_DAYS: new Set(
+      data.actions.map((action) =>
+        action.occurredAt.toISOString().slice(0, 10),
+      ),
+    ).size,
+    SIDE_INCOME: independentIncome,
+    REMOTE_WORK: data.career.conditions.some(
+      (condition) =>
+        condition.completed &&
+        /remote|リモート|場所/.test(condition.title.toLocaleLowerCase('ja')),
+    )
+      ? 1
+      : 0,
+  }
   async function refresh() {
     try {
       const newItems = await check()
@@ -86,16 +110,7 @@ function AchievementsPage() {
         <div className="achievement-grid">
           {data.achievements.definitions.map((achievement) => {
             const earned = unlocked.get(achievement.id)
-            const current =
-              achievement.kind === 'MISSION_COUNT'
-                ? data.missions.filter((item) => item.completed).length
-                : achievement.kind === 'TOTAL_XP'
-                  ? data.totalXp
-                  : achievement.kind === 'SAVINGS'
-                    ? (data.finance?.currentSavings ?? 0)
-                    : achievement.kind === 'JOURNEY'
-                      ? data.journey.progressKm
-                      : data.readiness.overall
+            const current = currentByKind[achievement.kind] ?? 0
             return (
               <article
                 key={achievement.id}

@@ -7,6 +7,7 @@ import {
   calculateVisitStats,
   lifeRatio,
   reverseCalendar,
+  weeklyXpActivity,
 } from './insights.service'
 
 describe('insights service', () => {
@@ -40,6 +41,18 @@ describe('insights service', () => {
       achieved: true,
       actionCount: 3,
     })
+  })
+
+  it('keeps zero-XP days in weekly activity', () => {
+    const result = weeklyXpActivity(
+      [
+        { occurredAt: new Date('2026-08-17T02:00:00Z'), amount: 10 },
+        { occurredAt: new Date('2026-08-19T02:00:00Z'), amount: 20 },
+      ],
+      new Date('2026-08-20T12:00:00Z'),
+    )
+    expect(result).toHaveLength(7)
+    expect(result.map((day) => day.xp)).toEqual([10, 0, 20, 0, 0, 0, 0])
   })
 
   it('labels savings pace against the target', () => {

@@ -6,6 +6,10 @@ type Point = {
   latitude: number
   longitude: number
   kind: string
+  description?: string | null
+  date?: string | null
+  imageUrl?: string | null
+  visitCount?: number
 }
 
 export default function IslandMap({ points }: { points: Point[] }) {
@@ -33,7 +37,21 @@ export default function IslandMap({ points }: { points: Point[] }) {
           <Popup>
             <strong>{point.name}</strong>
             <br />
-            {point.kind}
+            {point.date ?? point.kind}
+            {point.imageUrl ? (
+              <>
+                <br />
+                <img src={point.imageUrl} alt={point.name} width="180" />
+              </>
+            ) : null}
+            {point.description ? (
+              <>
+                <br />
+                {point.description}
+              </>
+            ) : null}
+            <br />
+            訪問 {point.visitCount ?? 0}回
           </Popup>
         </CircleMarker>
       ))}

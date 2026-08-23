@@ -2,12 +2,13 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 
 import {
+  averageRecentMonthlySaving,
   calculateScenario,
   calculateSavingForecast as calculateSavingForecastValue,
 } from '#/services/finance.service'
 import { calculateJourney } from '#/services/journey.service'
 import { calculateReadiness } from '#/services/readiness.service'
-
+import { checkAndUnlockAchievements } from './achievement-check.server'
 import { coreRepository } from './core-repository.server'
 import {
   addSkillXpSchema,
@@ -34,7 +35,12 @@ export const getSettings = createServerFn({ method: 'GET' }).handler(() =>
 
 export const updateSettings = createServerFn({ method: 'POST' })
   .validator(settingsSchema)
-  .handler(({ data }) => coreRepository().saveSettings(data))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const result = await repository.saveSettings(data)
+    await checkAndUnlockAchievements(repository)
+    return result
+  })
 
 export const getConditions = createServerFn({ method: 'GET' }).handler(() =>
   coreRepository().listConditions(),
@@ -50,7 +56,12 @@ export const updateCondition = createServerFn({ method: 'POST' })
 
 export const completeCondition = createServerFn({ method: 'POST' })
   .validator(idSchema)
-  .handler(({ data }) => coreRepository().toggleCondition(data.id))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const condition = await repository.toggleCondition(data.id)
+    await checkAndUnlockAchievements(repository)
+    return condition
+  })
 
 export const deleteCondition = createServerFn({ method: 'POST' })
   .validator(idSchema)
@@ -117,7 +128,12 @@ export const deleteMission = createServerFn({ method: 'POST' })
 
 export const completeMission = createServerFn({ method: 'POST' })
   .validator(idSchema)
-  .handler(({ data }) => coreRepository().completeMission(data.id))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const mission = await repository.completeMission(data.id)
+    await checkAndUnlockAchievements(repository)
+    return mission
+  })
 
 export const uncompleteMission = createServerFn({ method: 'POST' })
   .validator(idSchema)
@@ -132,16 +148,7 @@ export const getFinance = createServerFn({ method: 'GET' }).handler(
       repository.listLifeSimulations(),
       repository.listScenarios(),
     ])
-    const average = transactions
-      .slice(0, 3)
-      .reduce(
-        (sum, transaction) =>
-          sum +
-          (transaction.type === 'DEPOSIT'
-            ? transaction.amount
-            : -transaction.amount),
-        0,
-      )
+    const average = averageRecentMonthlySaving(transactions)
     return {
       settings,
       transactions,
@@ -151,10 +158,7 @@ export const getFinance = createServerFn({ method: 'GET' }).handler(
         ? calculateSavingForecastValue({
             currentSavings: settings.currentSavings,
             targetSavings: settings.targetSavings,
-            averageMonthlySaving:
-              transactions.length > 0
-                ? average / Math.min(transactions.length, 3)
-                : undefined,
+            averageMonthlySaving: average,
             fallbackMonthlySaving: settings.monthlySavingTarget,
           })
         : null,
@@ -164,7 +168,12 @@ export const getFinance = createServerFn({ method: 'GET' }).handler(
 
 export const updateFinanceSettings = createServerFn({ method: 'POST' })
   .validator(financeSettingsSchema)
-  .handler(({ data }) => coreRepository().saveFinanceSettings(data))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const result = await repository.saveFinanceSettings(data)
+    await checkAndUnlockAchievements(repository)
+    return result
+  })
 
 export const getSavingTransactions = createServerFn({ method: 'GET' }).handler(
   () => coreRepository().listSavings(),
@@ -172,7 +181,12 @@ export const getSavingTransactions = createServerFn({ method: 'GET' }).handler(
 
 export const createSavingTransaction = createServerFn({ method: 'POST' })
   .validator(savingInputSchema)
-  .handler(({ data }) => coreRepository().createSaving(data))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const result = await repository.createSaving(data)
+    await checkAndUnlockAchievements(repository)
+    return result
+  })
 
 export const deleteSavingTransaction = createServerFn({ method: 'POST' })
   .validator(idSchema)
@@ -208,11 +222,21 @@ export const getCareerConditions = createServerFn({ method: 'GET' }).handler(
 
 export const createCareerCondition = createServerFn({ method: 'POST' })
   .validator(careerConditionSchema.omit({ id: true }))
-  .handler(({ data }) => coreRepository().saveCareerCondition(data))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const result = await repository.saveCareerCondition(data)
+    await checkAndUnlockAchievements(repository)
+    return result
+  })
 
 export const updateCareerCondition = createServerFn({ method: 'POST' })
   .validator(careerConditionSchema.required({ id: true }))
-  .handler(({ data }) => coreRepository().saveCareerCondition(data))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const result = await repository.saveCareerCondition(data)
+    await checkAndUnlockAchievements(repository)
+    return result
+  })
 
 export const deleteCareerCondition = createServerFn({ method: 'POST' })
   .validator(idSchema)
@@ -226,11 +250,21 @@ export const getIncomeSources = createServerFn({ method: 'GET' }).handler(
 
 export const createIncomeSource = createServerFn({ method: 'POST' })
   .validator(incomeSourceSchema.omit({ id: true }))
-  .handler(({ data }) => coreRepository().saveIncomeSource(data))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const result = await repository.saveIncomeSource(data)
+    await checkAndUnlockAchievements(repository)
+    return result
+  })
 
 export const updateIncomeSource = createServerFn({ method: 'POST' })
   .validator(incomeSourceSchema.required({ id: true }))
-  .handler(({ data }) => coreRepository().saveIncomeSource(data))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const result = await repository.saveIncomeSource(data)
+    await checkAndUnlockAchievements(repository)
+    return result
+  })
 
 export const deleteIncomeSource = createServerFn({ method: 'POST' })
   .validator(idSchema)
@@ -270,45 +304,17 @@ export const deleteSkill = createServerFn({ method: 'POST' })
 
 export const addSkillXp = createServerFn({ method: 'POST' })
   .validator(addSkillXpSchema)
-  .handler(({ data }) => coreRepository().addSkillXp(data.id, data.amount))
+  .handler(async ({ data }) => {
+    const repository = coreRepository()
+    const result = await repository.addSkillXp(data.id, data.amount)
+    await checkAndUnlockAchievements(repository)
+    return result
+  })
 
 export const getAchievements = createServerFn({ method: 'GET' }).handler(() =>
   coreRepository().listAchievements(),
 )
 
 export const checkAchievements = createServerFn({ method: 'POST' }).handler(
-  async () => {
-    const repository = coreRepository()
-    const [
-      { definitions, unlocked },
-      missionsList,
-      finance,
-      totalXp,
-      conditions,
-    ] = await Promise.all([
-      repository.listAchievements(),
-      repository.listMissions(),
-      repository.getFinanceSettings(),
-      repository.totalXp(),
-      repository.listConditions(),
-    ])
-    const readiness = calculateReadiness(conditions).overall
-    const values: Record<string, number> = {
-      MISSION_COUNT: missionsList.filter((mission) => mission.completed).length,
-      TOTAL_XP: totalXp,
-      SAVINGS: finance?.currentSavings ?? 0,
-      JOURNEY: calculateJourney(totalXp).progressKm,
-      READINESS: readiness,
-    }
-    const unlockedIds = new Set(unlocked.map((item) => item.achievementId))
-    const newlyUnlocked = definitions.filter(
-      (definition) =>
-        !unlockedIds.has(definition.id) &&
-        (values[definition.kind] ?? 0) >= definition.threshold,
-    )
-    await repository.unlockAchievementIds(
-      newlyUnlocked.map((definition) => definition.id),
-    )
-    return newlyUnlocked
-  },
+  () => checkAndUnlockAchievements(coreRepository()),
 )

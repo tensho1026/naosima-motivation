@@ -251,9 +251,13 @@ export class ContentRepository {
   }
 
   async replaceIdealWeek(items: (typeof idealWeekItems.$inferInsert)[]) {
-    await this.db.delete(idealWeekItems).run()
     if (items.length > 0) {
-      await this.db.insert(idealWeekItems).values(items).run()
+      await this.db.batch([
+        this.db.delete(idealWeekItems),
+        this.db.insert(idealWeekItems).values(items),
+      ])
+    } else {
+      await this.db.delete(idealWeekItems).run()
     }
     return this.listIdealWeek()
   }

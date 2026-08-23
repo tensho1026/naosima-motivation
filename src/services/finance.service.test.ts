@@ -4,6 +4,8 @@ import {
   calculateLifeSimulation,
   calculateRunwayMonths,
   calculateSavingForecast,
+  averageRecentMonthlySaving,
+  monthlySavingHistory,
 } from './finance.service'
 
 describe('finance service', () => {
@@ -53,5 +55,18 @@ describe('finance service', () => {
   it('calculates emergency-fund runway without Infinity', () => {
     expect(calculateRunwayMonths(840000, 100000)).toBe(8.4)
     expect(calculateRunwayMonths(840000, 0)).toBeNull()
+  })
+
+  it('aggregates transactions by month before averaging', () => {
+    const transactions = [
+      { amount: 20_000, type: 'DEPOSIT' as const, date: '2026-06-01' },
+      { amount: 5_000, type: 'DEPOSIT' as const, date: '2026-06-20' },
+      { amount: 3_000, type: 'WITHDRAWAL' as const, date: '2026-07-02' },
+    ]
+    expect(monthlySavingHistory(transactions)).toEqual([
+      { month: '2026-06', amount: 25_000 },
+      { month: '2026-07', amount: -3_000 },
+    ])
+    expect(averageRecentMonthlySaving(transactions)).toBe(11_000)
   })
 })

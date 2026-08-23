@@ -1,5 +1,6 @@
 import { useServerFn } from '@tanstack/react-start'
 import { ClientOnly, createFileRoute, useRouter } from '@tanstack/react-router'
+import { differenceInCalendarDays } from 'date-fns'
 import {
   CalendarDays,
   Heart,
@@ -37,6 +38,7 @@ import {
   deleteVisit,
   getMemoriesHub,
   setFavoritePhoto,
+  updateNextVisitItem,
 } from '#/server/content.functions'
 
 const IslandMap = lazy(() => import('#/components/memories/IslandMap.client'))
@@ -61,6 +63,7 @@ function MemoriesPage() {
   const favoritePhoto = useServerFn(setFavoritePhoto)
   const addNext = useServerFn(createNextVisitItem)
   const removeNext = useServerFn(deleteNextVisitItem)
+  const updateNext = useServerFn(updateNextVisitItem)
   const uploadAudio = useServerFn(createAudioRecord)
   const removeAudio = useServerFn(deleteAudioRecord)
   async function run(
@@ -105,6 +108,10 @@ function MemoriesPage() {
           latitude: Number(row.latitude),
           longitude: Number(row.longitude),
           kind: String(row.kind),
+          description: row.description ? String(row.description) : null,
+          visitCount: data.visits.filter((visit) =>
+            visit.places.includes(String(row.name)),
+          ).length,
         }))
         .filter(
           (point) =>
@@ -118,13 +125,41 @@ function MemoriesPage() {
           latitude: memory.latitude as number,
           longitude: memory.longitude as number,
           kind: 'MEMORY',
+          description: memory.description,
+          date: memory.date,
+          imageUrl:
+            data.photos.find((photo) => photo.id === memory.photoId)
+              ?.imageUrl ?? null,
+          visitCount: memory.visitId ? 1 : 0,
         })),
     ],
-    [data.extras.favoritePlaces, data.memories],
+    [data.extras.favoritePlaces, data.memories, data.photos, data.visits],
   )
   const visitCountdown = (data.extras.calendarEvents ?? [])
     .filter((row) => row.kind === 'NEXT_VISIT' && String(row.date) >= today())
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))[0]
+  const daysUntilVisit = visitCountdown
+    ? Math.max(
+        differenceInCalendarDays(
+          new Date(`${String(visitCountdown.date)}T00:00:00`),
+          new Date(),
+        ),
+        0,
+      )
+    : null
+  const latestVisitEnd = data.visits
+    .map((visit) => visit.endDate)
+    .sort()
+    .at(-1)
+  const daysSinceLastVisit = latestVisitEnd
+    ? Math.max(
+        differenceInCalendarDays(
+          new Date(),
+          new Date(`${latestVisitEnd}T00:00:00`),
+        ),
+        0,
+      )
+    : null
   const randomQuest = (data.extras.islandQuests ?? []).filter(
     (row) => Number(row.randomEligible) === 1 && Number(row.completed) === 0,
   )[new Date().getDate() % Math.max((data.extras.islandQuests ?? []).length, 1)]
@@ -140,7 +175,7 @@ function MemoriesPage() {
           value={`${data.visits.length}回`}
           detail={
             visitCountdown
-              ? `次回 ${String(visitCountdown.date)}`
+              ? `次回まであと${daysUntilVisit}日 · ${String(visitCountdown.date)}`
               : '次回予定は未登録'
           }
           tone="sea"
@@ -148,7 +183,7 @@ function MemoriesPage() {
         <Stat
           label="累計滞在"
           value={`${totalDays}日`}
-          detail={`${totalDays * 24} hours`}
+          detail={`${totalDays * 24} hours · 最後から${daysSinceLastVisit ?? '—'}日`}
           tone="green"
         />
         <Stat
@@ -352,6 +387,7 @@ function MemoriesPage() {
                 <button
                   className="icon-button danger"
                   onClick={() =>
+                    window.confirm('この思い出を削除しますか？') &&
                     run(
                       () => removeMemory({ data: { id: memory.id } }),
                       '思い出を削除しました',
@@ -568,7 +604,27 @@ function MemoriesPage() {
           <div className="item-list">
             {data.nextVisit.map((item) => (
               <article className="list-row" key={item.id}>
-                <Star size={15} />
+                <button
+                  className={`condition-check ${item.completed ? 'done' : ''}`}
+                  aria-label="達成状態を切り替え"
+                  onClick={() =>
+                    run(
+                      () =>
+                        updateNext({
+                          data: {
+                            id: item.id,
+                            title: item.title,
+                            description: item.description,
+                            completed: !item.completed,
+                            priority: item.priority,
+                          },
+                        }),
+                      '次回訪問リストを更新しました',
+                    )
+                  }
+                >
+                  {item.completed ? <Star size={12} /> : null}
+                </button>
                 <div>
                   <strong>{item.title}</strong>
                   <p>
@@ -578,6 +634,7 @@ function MemoriesPage() {
                 <button
                   className="icon-button danger"
                   onClick={() =>
+                    window.confirm('次回訪問リストから削除しますか？') &&
                     run(
                       () => removeNext({ data: { id: item.id } }),
                       '削除しました',
@@ -797,6 +854,88 @@ function MemoriesPage() {
           ]}
         />
       </section>
+      <Card title="訪問アルバムを見る" eyebrow="VISIT STORIES">
+        {(data.extras.albums ?? []).length === 0 ? (
+          <EmptyState title="アルバムはまだありません" />
+        ) : (
+          <div className="album-viewer">
+            {(data.extras.albums ?? []).map((album) => {
+              const photoIds = (data.extras.albumPhotos ?? [])
+                .filter((item) => String(item.albumId) === String(album.id))
+                .sort(
+                  (left, right) =>
+                    Number(left.sortOrder) - Number(right.sortOrder),
+                )
+                .map((item) => String(item.photoId))
+              const albumImages = photoIds
+                .map((id) => data.photos.find((photo) => photo.id === id))
+                .filter((photo) => photo != null)
+              return (
+                <article key={String(album.id)}>
+                  <div>
+                    <strong>{String(album.title)}</strong>
+                    <p>{String(album.description ?? '訪問の写真')}</p>
+                  </div>
+                  {albumImages.length === 0 ? (
+                    <small>写真IDを追加すると、ここに並びます。</small>
+                  ) : (
+                    <div className="album-strip">
+                      {albumImages.map((photo) => (
+                        <img
+                          key={photo.id}
+                          src={photo.imageUrl}
+                          alt={photo.caption ?? String(album.title)}
+                          loading="lazy"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </Card>
+      <Card title="同じ場所の変化" eyebrow="2026 → 2027 → 2028">
+        {(data.extras.photoComparisons ?? []).length === 0 ? (
+          <EmptyState
+            title="写真比較はまだありません"
+            description="比較セットと年別写真を登録すると、ここに横並びで表示します。"
+          />
+        ) : (
+          <div className="comparison-gallery">
+            {(data.extras.photoComparisons ?? []).map((comparison) => {
+              const items = (data.extras.photoComparisonItems ?? [])
+                .filter(
+                  (item) => String(item.comparisonId) === String(comparison.id),
+                )
+                .sort((left, right) => Number(left.year) - Number(right.year))
+              return (
+                <article key={String(comparison.id)}>
+                  <h3>{String(comparison.title)}</h3>
+                  <div>
+                    {items.map((item) => {
+                      const photo = data.photos.find(
+                        (candidate) => candidate.id === String(item.photoId),
+                      )
+                      return photo ? (
+                        <figure key={String(item.id)}>
+                          <img
+                            src={photo.imageUrl}
+                            alt={`${String(comparison.title)} ${String(item.year)}`}
+                            loading="lazy"
+                          />
+                          <figcaption>{String(item.year)}</figcaption>
+                        </figure>
+                      ) : null
+                    })}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )}
+      </Card>
     </Page>
   )
 }

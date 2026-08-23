@@ -1,6 +1,6 @@
 import { useServerFn } from '@tanstack/react-start'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
-import { Check, Trash2 } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
 import { ExtraResourcePanel } from '#/components/ui/ExtraResourcePanel'
@@ -21,6 +21,7 @@ import {
   createRoadmapItem,
   deleteCondition,
   deleteRoadmapItem,
+  reorderRoadmapItems,
 } from '#/server/core.functions'
 import { getDashboard } from '#/server/dashboard.functions'
 
@@ -48,6 +49,7 @@ function JourneyPage() {
   const removeCondition = useServerFn(deleteCondition)
   const addRoadmap = useServerFn(createRoadmapItem)
   const removeRoadmap = useServerFn(deleteRoadmapItem)
+  const reorderRoadmap = useServerFn(reorderRoadmapItems)
   const [pending, setPending] = useState(false)
 
   async function mutate(action: () => Promise<unknown>, message: string) {
@@ -127,6 +129,17 @@ function JourneyPage() {
     } finally {
       setPending(false)
     }
+  }
+
+  async function moveRoadmap(index: number, direction: -1 | 1) {
+    const target = index + direction
+    if (target < 0 || target >= data.roadmap.length) return
+    const ids = data.roadmap.map((item) => item.id)
+    ;[ids[index], ids[target]] = [ids[target], ids[index]]
+    await mutate(
+      () => reorderRoadmap({ data: { ids } }),
+      'ロードマップを並び替えました',
+    )
   }
 
   const extras = data.extras
@@ -294,18 +307,36 @@ function JourneyPage() {
                       {item.targetDate} · {item.category}
                     </p>
                   </div>
-                  <button
-                    className="icon-button danger"
-                    onClick={() =>
-                      window.confirm('削除しますか？') &&
-                      mutate(
-                        () => removeRoadmap({ data: { id: item.id } }),
-                        '節目を削除しました',
-                      )
-                    }
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="roadmap-actions">
+                    <button
+                      className="icon-button"
+                      aria-label="上へ移動"
+                      disabled={index === 0}
+                      onClick={() => moveRoadmap(index, -1)}
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label="下へ移動"
+                      disabled={index === data.roadmap.length - 1}
+                      onClick={() => moveRoadmap(index, 1)}
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                    <button
+                      className="icon-button danger"
+                      onClick={() =>
+                        window.confirm('削除しますか？') &&
+                        mutate(
+                          () => removeRoadmap({ data: { id: item.id } }),
+                          '節目を削除しました',
+                        )
+                      }
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </article>
               ))}
             </div>
