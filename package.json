@@ -23,7 +23,6 @@
     "db:migrate": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:seed": "wrangler d1 execute DB --local --file=drizzle/seed.sql",
-    "db:seed:remote": "wrangler d1 execute DB --remote --file=drizzle/seed.sql",
     "db:studio": "drizzle-kit studio",
     "cf:typegen": "wrangler types",
     "deploy": "pnpm build && wrangler deploy"

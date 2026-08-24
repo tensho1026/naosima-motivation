@@ -57,7 +57,7 @@ function AchievementsPage() {
       const newItems = await check()
       notify(
         newItems.length
-          ? `${newItems.length}個のAchievementを解除しました`
+          ? `${newItems.length}個の称号を解除しました`
           : '新しい解除条件はまだありません',
       )
       await router.invalidate({ sync: true })
@@ -70,8 +70,8 @@ function AchievementsPage() {
   }
   return (
     <Page
-      title="Achievements"
-      eyebrow="PROOF OF THE JOURNEY"
+      title="称号"
+      eyebrow="旅の証し"
       description="大きな一歩を称号として残し、直島へ近づいた証拠を集めます。"
       actions={
         <button className="button primary" onClick={refresh}>
@@ -84,13 +84,13 @@ function AchievementsPage() {
         <Stat
           label="解除済み"
           value={`${unlocked.size} / ${data.achievements.definitions.length}`}
-          detail="Journey badges"
+          detail="移住への称号"
           tone="gold"
         />
         <Stat
-          label="Mission達成"
+          label="行動達成"
           value={data.missions.filter((item) => item.completed).length}
-          detail="FIRST STEPへ"
+          detail="最初の一歩へ"
           tone="sea"
         />
         <Stat
@@ -102,11 +102,11 @@ function AchievementsPage() {
         <Stat
           label="準備度"
           value={`${Math.round(data.readiness.overall)}%`}
-          detail={data.readyStatus.replaceAll('_', ' ')}
+          detail="必須条件から判定"
           tone="coral"
         />
       </section>
-      <Card title="Badge Collection" eyebrow="YOUR ACHIEVEMENTS">
+      <Card title="称号コレクション" eyebrow="これまでの達成">
         <div className="achievement-grid">
           {data.achievements.definitions.map((achievement) => {
             const earned = unlocked.get(achievement.id)
@@ -142,7 +142,7 @@ function AchievementsPage() {
         </div>
       </Card>
       <section className="content-grid achievement-notes">
-        <Card title="次の称号" eyebrow="NEXT BADGE">
+        <Card title="次の称号" eyebrow="次の目標">
           <div className="next-badge">
             <Award />
             <div>
@@ -151,11 +151,13 @@ function AchievementsPage() {
                   (item) => !unlocked.has(item.id),
                 )?.title ?? 'すべて解除済み'}
               </strong>
-              <p>Mission・貯金・Journey・準備度の実績から自動判定されます。</p>
+              <p>
+                行動・貯金・仮想移動距離・準備度の実績から自動判定されます。
+              </p>
             </div>
           </div>
         </Card>
-        <Card title="積み重ねは消えない" eyebrow="JOURNEY PROOF">
+        <Card title="積み重ねは消えない" eyebrow="旅の証し">
           <blockquote>
             「これだけ本気で準備してきた」を、数字と記録の両方で未来の自分へ残す。
           </blockquote>

@@ -16,25 +16,25 @@ import {
 import ThemeToggle from './ThemeToggle'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/journey', label: 'Journey', icon: Compass },
-  { to: '/missions', label: 'Missions', icon: CalendarCheck2 },
-  { to: '/finance', label: 'Finance', icon: Banknote },
-  { to: '/career', label: 'Career', icon: BriefcaseBusiness },
-  { to: '/skills', label: 'Skills', icon: Sparkles },
-  { to: '/future', label: 'Future', icon: Flag },
-  { to: '/memories', label: 'Memories', icon: Images },
-  { to: '/achievements', label: 'Badges', icon: Trophy },
-  { to: '/reviews', label: 'Reviews', icon: Heart },
-  { to: '/settings', label: 'Settings', icon: CircleUserRound },
+  { to: '/', label: 'ホーム', icon: LayoutDashboard },
+  { to: '/journey', label: '移住計画', icon: Compass },
+  { to: '/missions', label: '行動', icon: CalendarCheck2 },
+  { to: '/finance', label: '資金', icon: Banknote },
+  { to: '/career', label: '仕事', icon: BriefcaseBusiness },
+  { to: '/skills', label: 'スキル', icon: Sparkles },
+  { to: '/future', label: '未来', icon: Flag },
+  { to: '/memories', label: '思い出', icon: Images },
+  { to: '/achievements', label: '称号', icon: Trophy },
+  { to: '/reviews', label: '振り返り', icon: Heart },
+  { to: '/settings', label: '設定', icon: CircleUserRound },
 ] as const
 
 const mobileNavItems = [
-  { to: '/', label: 'Home', icon: LayoutDashboard },
-  { to: '/journey', label: 'Journey', icon: Compass },
-  { to: '/missions', label: 'Missions', icon: CalendarCheck2 },
-  { to: '/future', label: 'Future', icon: Flag },
-  { to: '/settings', label: 'More', icon: CircleUserRound },
+  { to: '/', label: 'ホーム', icon: LayoutDashboard },
+  { to: '/journey', label: '移住計画', icon: Compass },
+  { to: '/missions', label: '行動', icon: CalendarCheck2 },
+  { to: '/future', label: '未来', icon: Flag },
+  { to: '/settings', label: 'その他', icon: CircleUserRound },
 ] as const
 
 export default function Header() {
@@ -48,7 +48,7 @@ export default function Header() {
             </span>
             <span>
               <strong>Naoshima Bound</strong>
-              <small>MY ISLAND JOURNEY</small>
+              <small>直島移住への旅</small>
             </span>
           </Link>
           <nav className="main-nav" aria-label="メインナビゲーション">

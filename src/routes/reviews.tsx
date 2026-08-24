@@ -85,15 +85,15 @@ function ReviewsPage() {
   const latest = data.snapshots.at(-1)
   return (
     <Page
-      title="Reviews"
-      eyebrow="LOOK BACK, MOVE FORWARD"
-      description="月末の言葉と数値を同時に固定し、過去の自分との比較とJourney Replayに使います。"
+      title="振り返り"
+      eyebrow="振り返って前へ進む"
+      description="月末の言葉と数値を同時に記録し、過去の自分との比較と旅の振り返りに使います。"
     >
       <section className="stats-grid page-stats">
         <Stat
-          label="今月のXP"
+          label="今月の経験値"
           value={`+${data.summary.gainedXp}`}
-          detail={`Skill XP +${data.summary.gainedSkillXp}`}
+          detail={`スキル経験値 +${data.summary.gainedSkillXp}`}
           tone="sea"
         />
         <Stat
@@ -103,20 +103,20 @@ function ReviewsPage() {
           tone="green"
         />
         <Stat
-          label="完了Mission"
+          label="完了した行動"
           value={data.summary.completedMissions}
           detail={`総XP ${data.dashboard.totalXp}`}
           tone="gold"
         />
         <Stat
-          label="Journey"
+          label="仮想移動距離"
           value={`+${(data.summary.gainedXp / 10).toFixed(1)} km`}
           detail={`準備度 ${Math.round(data.summary.readiness.overall)}%`}
           tone="coral"
         />
       </section>
       <section className="content-grid">
-        <Card title="月次レビュー" eyebrow="MONTHLY REVIEW">
+        <Card title="月次レビュー" eyebrow="今月の振り返り">
           <form
             className="review-form"
             onSubmit={submit}
@@ -164,7 +164,7 @@ function ReviewsPage() {
             </SubmitButton>
           </form>
         </Card>
-        <Card title="Before / After" eyebrow="MONTHLY SNAPSHOT">
+        <Card title="前月との比較" eyebrow="月ごとの記録">
           {latest && previous ? (
             <div className="before-after">
               <div>
@@ -193,8 +193,8 @@ function ReviewsPage() {
       </section>
       <section className="content-grid">
         <Card
-          title="移住Score History / Journey Replay"
-          eyebrow="LONG-TERM GROWTH"
+          title="移住準備度の履歴 / 旅の振り返り"
+          eyebrow="長期的な成長"
           className="wide"
         >
           <div className="chart-md">
@@ -214,7 +214,7 @@ function ReviewsPage() {
                 <Line
                   type="monotone"
                   dataKey="completedMissions"
-                  name="完了Mission"
+                  name="完了した行動"
                   stroke="#d49b35"
                   strokeWidth={2}
                 />
@@ -231,7 +231,7 @@ function ReviewsPage() {
             ))}
           </div>
         </Card>
-        <Card title="レビュー履歴" eyebrow="PAST MONTHS">
+        <Card title="レビュー履歴" eyebrow="過去の月">
           {data.reviews.length === 0 ? (
             <EmptyState />
           ) : (
@@ -307,7 +307,7 @@ function ReviewsPage() {
             },
           ]}
         />
-        <Card title="迷ったとき" eyebrow="REMEMBER WHY">
+        <Card title="迷ったとき" eyebrow="理由を思い出す">
           <div className="doubt-card">
             <BookHeart />
             <blockquote>

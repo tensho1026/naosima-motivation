@@ -11,7 +11,7 @@ export function RouterError({
 }) {
   return (
     <main className="app-page">
-      <Card title="読み込みに失敗しました" eyebrow="SOMETHING WENT WRONG">
+      <Card title="読み込みに失敗しました" eyebrow="エラーが発生しました">
         <p>{error.message}</p>
         <button className="button primary" onClick={reset}>
           もう一度読み込む
@@ -26,7 +26,7 @@ export function RouterNotFound() {
     <main className="app-page">
       <Card title="ページが見つかりません">
         <Link to="/" className="button primary">
-          Dashboardへ戻る
+          ホームへ戻る
         </Link>
       </Card>
     </main>

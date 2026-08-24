@@ -1,5 +1,5 @@
 import { useServerFn } from '@tanstack/react-start'
-import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -24,6 +24,7 @@ import {
   reorderRoadmapItems,
 } from '#/server/core.functions'
 import { getDashboard } from '#/server/dashboard.functions'
+import { categoryLabel, readyStatusLabel } from '#/utils/display'
 
 export const Route = createFileRoute('/journey')({
   loader: () => getDashboard(),
@@ -143,10 +144,24 @@ function JourneyPage() {
   }
 
   const extras = data.extras
+  if (!data.settings) {
+    return (
+      <Page title="移住計画" eyebrow="直島までの道のり">
+        <Card title="先に基本設定が必要です">
+          <p>
+            移住目標日と準備を始める日を設定してから、条件やロードマップを作成してください。
+          </p>
+          <Link to="/settings" className="button primary">
+            基本設定を開く
+          </Link>
+        </Card>
+      </Page>
+    )
+  }
   return (
     <Page
-      title="Journey"
-      eyebrow="PATH TO NAOSHIMA"
+      title="移住計画"
+      eyebrow="直島までの道のり"
       description="必要条件と人生の節目をつなぎ、現在地から移住までのルートを見通します。"
     >
       <section className="stats-grid page-stats">
@@ -159,14 +174,14 @@ function JourneyPage() {
           <ProgressBar value={data.journey.progressPercent} />
         </div>
         <div className="stat stat-green">
-          <span>Ready判定</span>
-          <strong>{data.readyStatus.replaceAll('_', ' ')}</strong>
+          <span>移住可否の判定</span>
+          <strong>{readyStatusLabel(data.readyStatus)}</strong>
           <small>必須条件だけで判定</small>
         </div>
         <div className="stat stat-gold">
           <span>積み上げた日数</span>
           <strong>{data.journeyDays}日</strong>
-          <small>Journey started</small>
+          <small>準備を始めてから</small>
         </div>
         <div className="stat stat-coral">
           <span>累計投資</span>
@@ -178,7 +193,7 @@ function JourneyPage() {
       </section>
 
       <section className="content-grid journey-core">
-        <Card title="移住条件" eyebrow="READINESS CONDITIONS">
+        <Card title="移住条件" eyebrow="準備に必要な条件">
           <form className="stack-form" onSubmit={submitCondition}>
             <Field label="条件">
               <input
@@ -191,7 +206,9 @@ function JourneyPage() {
             <Field label="カテゴリ">
               <select name="category">
                 {categoryOptions.map((value) => (
-                  <option key={value}>{value}</option>
+                  <option key={value} value={value}>
+                    {categoryLabel(value)}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -215,7 +232,7 @@ function JourneyPage() {
               <input name="targetValue" type="number" step="any" />
             </Field>
             <Field label="単位">
-              <input name="unit" placeholder="円 / Level / 日" />
+              <input name="unit" placeholder="円 / レベル / 日" />
             </Field>
             <label className="check-field">
               <input name="required" type="checkbox" defaultChecked />
@@ -269,7 +286,7 @@ function JourneyPage() {
           </div>
         </Card>
 
-        <Card title="移住ロードマップ" eyebrow="RPG ROADMAP">
+        <Card title="移住ロードマップ" eyebrow="目標までの道のり">
           <form className="stack-form" onSubmit={submitRoadmap}>
             <Field label="節目">
               <input name="title" required />
@@ -347,7 +364,7 @@ function JourneyPage() {
       <section className="content-grid extra-grid">
         <ExtraResourcePanel
           resource="milestoneEvents"
-          title="Milestone Timeline"
+          title="節目のタイムライン"
           description="達成した大きなイベントだけを一本の履歴に。"
           rows={extras.milestoneEvents ?? []}
           fields={[
@@ -385,7 +402,7 @@ function JourneyPage() {
         />
         <ExtraResourcePanel
           resource="seasonGoals"
-          title="Season Goal"
+          title="季節の目標"
           description="3か月単位の重点テーマ。"
           rows={extras.seasonGoals ?? []}
           fields={[
@@ -412,8 +429,8 @@ function JourneyPage() {
         />
         <ExtraResourcePanel
           resource="focusSettings"
-          title="Focus Mode"
-          description="今の重点カテゴリをDashboardでも強調。"
+          title="集中モード"
+          description="今の重点カテゴリをホームでも強調します。"
           rows={extras.focusSettings ?? []}
           fields={[
             {
@@ -448,7 +465,7 @@ function JourneyPage() {
         />
         <ExtraResourcePanel
           resource="decisionLogs"
-          title="Decision Log"
+          title="決断の記録"
           description="方針がブレたときに戻れる、大きな決断の記録。"
           rows={extras.decisionLogs ?? []}
           fields={[

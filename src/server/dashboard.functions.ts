@@ -103,8 +103,9 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(
       ]),
     ])
 
-    const targetDate = settings?.migrationTargetDate ?? '2030-04-01'
-    const journeyStartedAt = settings?.journeyStartedAt ?? '2026-08-23'
+    const currentDate = new Date().toISOString().slice(0, 10)
+    const targetDate = settings?.migrationTargetDate ?? currentDate
+    const journeyStartedAt = settings?.journeyStartedAt ?? currentDate
     const readiness = calculateReadiness(conditions)
     const journey = calculateJourney(
       totalXp,

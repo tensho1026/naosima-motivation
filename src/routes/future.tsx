@@ -38,6 +38,7 @@ import {
   updateBucketItem,
   updateIdealWeek,
 } from '#/server/content.functions'
+import { bucketKindLabel } from '#/utils/display'
 
 export const Route = createFileRoute('/future')({
   loader: () => getFutureHub(),
@@ -108,8 +109,8 @@ function FuturePage() {
   const completedDreams = data.bucket.filter((item) => item.completed).length
   return (
     <Page
-      title="Future"
-      eyebrow="LIVE IT BEFORE YOU MOVE"
+      title="未来"
+      eyebrow="移住前から未来を描く"
       description="移住後の一日・一週間・プロフィール・手紙を先に描き、現在との差を行動へ戻します。"
     >
       <section className="stats-grid page-stats">
@@ -119,7 +120,7 @@ function FuturePage() {
           <small>朝から夜まで具体化</small>
         </div>
         <div className="stat stat-green">
-          <span>Dreams</span>
+          <span>夢</span>
           <strong>
             {completedDreams} / {data.bucket.length}
           </strong>
@@ -132,18 +133,18 @@ function FuturePage() {
           />
         </div>
         <div className="stat stat-gold">
-          <span>Future Diary</span>
+          <span>未来日記</span>
           <strong>{data.diaries.length}</strong>
           <small>未来の日付から書く</small>
         </div>
         <div className="stat stat-coral">
-          <span>Why Naoshima</span>
+          <span>直島を選ぶ理由</span>
           <strong>{data.reasons.length}</strong>
           <small>迷ったときに戻る場所</small>
         </div>
       </section>
       <section className="content-grid">
-        <Card title="理想の1日" eyebrow="IDEAL DAY">
+        <Card title="理想の1日" eyebrow="理想の一日">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -214,7 +215,7 @@ function FuturePage() {
             ))}
           </div>
         </Card>
-        <Card title="未来の一週間" eyebrow="IDEAL WEEK">
+        <Card title="未来の一週間" eyebrow="理想の一週間">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -285,7 +286,7 @@ function FuturePage() {
         </Card>
       </section>
       <section className="content-grid">
-        <Card title="Future Diary" eyebrow="A DAY IN THE FUTURE">
+        <Card title="未来日記" eyebrow="未来の一日">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -334,7 +335,7 @@ function FuturePage() {
                   <button
                     className="icon-button danger"
                     onClick={() =>
-                      window.confirm('Future Diaryを削除しますか？') &&
+                      window.confirm('未来日記を削除しますか？') &&
                       run(
                         () => removeDiary({ data: { id: diary.id } }),
                         '日記を削除しました',
@@ -348,10 +349,7 @@ function FuturePage() {
             </div>
           )}
         </Card>
-        <Card
-          title="直島で叶えたいこと"
-          eyebrow="BUCKET · 100 DREAMS · PROJECTS"
-        >
+        <Card title="直島で叶えたいこと" eyebrow="やりたいこと・100の夢・計画">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -380,9 +378,9 @@ function FuturePage() {
             </Field>
             <Field label="種類">
               <select name="kind">
-                <option value="BUCKET">直島Bucket</option>
-                <option value="DREAM">100 Dreams</option>
-                <option value="PROJECT">Project</option>
+                <option value="BUCKET">直島でやりたいこと</option>
+                <option value="DREAM">100の夢</option>
+                <option value="PROJECT">計画</option>
               </select>
             </Field>
             <Field label="説明">
@@ -416,7 +414,7 @@ function FuturePage() {
                   {item.completed ? <Check size={14} /> : null}
                 </button>
                 <div>
-                  <Badge>{item.kind}</Badge>
+                  <Badge>{bucketKindLabel(item.kind)}</Badge>
                   <strong>{item.title}</strong>
                   <p>{item.description}</p>
                 </div>
@@ -438,7 +436,7 @@ function FuturePage() {
         </Card>
       </section>
       <section className="content-grid">
-        <Card title="Why Naoshima" eyebrow="YOUR REASONS">
+        <Card title="直島を選ぶ理由" eyebrow="自分の原点">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -485,7 +483,7 @@ function FuturePage() {
         </Card>
         <ExtraResourcePanel
           resource="lifestyleComparisons"
-          title="現在 vs 直島生活"
+          title="現在と直島生活"
           rows={data.extras.lifestyleComparisons ?? []}
           fields={[
             { name: 'label', label: '比較項目', required: true },
@@ -504,7 +502,7 @@ function FuturePage() {
         <ExtraResourcePanel
           resource="futureProfiles"
           title="未来プロフィール"
-          description="2030年の自分を先に保存。"
+          description="未来の自分を先に保存します。"
           rows={data.extras.futureProfiles ?? []}
           fields={[
             { name: 'targetYear', label: '年', type: 'number', required: true },
@@ -512,7 +510,6 @@ function FuturePage() {
               name: 'residence',
               label: '居住地',
               required: true,
-              defaultValue: '直島',
             },
             { name: 'workStyle', label: '働き方', required: true },
             {
@@ -535,17 +532,17 @@ function FuturePage() {
         />
         <ExtraResourcePanel
           resource="futureProjects"
-          title="直島でやりたいProject"
+          title="直島でやりたい計画"
           rows={data.extras.futureProjects ?? []}
           fields={[
-            { name: 'title', label: 'Project', required: true },
+            { name: 'title', label: '計画名', required: true },
             { name: 'description', label: '内容', type: 'textarea' },
             { name: 'completed', label: '実現済み', type: 'checkbox' },
           ]}
         />
         <ExtraResourcePanel
           resource="selfMessages"
-          title="Past Me / Future Me"
+          title="過去の自分 / 未来の自分"
           description="未来へ残す短いメッセージ。"
           rows={data.extras.selfMessages ?? []}
           fields={[
@@ -606,7 +603,7 @@ function FuturePage() {
             },
           ]}
         />
-        <Card title="写真・音声タイムカプセル" eyebrow="LOCKED R2 MEDIA">
+        <Card title="写真・音声タイムカプセル" eyebrow="R2へ封印した記録">
           <p className="panel-description">
             ファイル本体はR2へ置き、開封日まではメディアルートも404を返します。
           </p>
@@ -641,31 +638,38 @@ function FuturePage() {
               <textarea name="content" />
             </Field>
             <div className="form-actions">
-              <SubmitButton pending={pending}>R2へ封印</SubmitButton>
+              <SubmitButton pending={pending}>
+                タイムカプセルへ封印
+              </SubmitButton>
             </div>
           </form>
         </Card>
       </section>
       <Card
         title="未来のホーム画面"
-        eyebrow="2030 DASHBOARD"
+        eyebrow="未来の暮らし"
         className="future-home"
       >
         <div className="future-preview">
           <Clock3 />
           <div>
-            <span>2030年の自分</span>
+            <span>
+              {data.extras.futureProfiles?.[0]?.targetYear
+                ? `${String(data.extras.futureProfiles[0].targetYear)}年の自分`
+                : '未来の自分'}
+            </span>
             <h2>
-              {String(data.extras.futureProfiles?.[0]?.residence ?? '直島')}
+              {String(
+                data.extras.futureProfiles?.[0]?.residence ?? '居住地未設定',
+              )}
               で暮らす
             </h2>
             <p>
               {String(
-                data.extras.futureProfiles?.[0]?.workStyle ??
-                  '場所に縛られない働き方',
+                data.extras.futureProfiles?.[0]?.workStyle ?? '働き方未設定',
               )}{' '}
               · 週
-              {String(data.extras.futureProfiles?.[0]?.workDaysPerWeek ?? '4')}
+              {String(data.extras.futureProfiles?.[0]?.workDaysPerWeek ?? '—')}
               日
             </p>
           </div>

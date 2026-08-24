@@ -40,6 +40,7 @@ import {
   setFavoritePhoto,
   updateNextVisitItem,
 } from '#/server/content.functions'
+import { audioKindLabel } from '#/utils/display'
 
 const IslandMap = lazy(() => import('#/components/memories/IslandMap.client'))
 export const Route = createFileRoute('/memories')({
@@ -165,8 +166,8 @@ function MemoriesPage() {
   )[new Date().getDate() % Math.max((data.extras.islandQuests ?? []).length, 1)]
   return (
     <Page
-      title="Memories"
-      eyebrow="YOUR NAOSHIMA ARCHIVE"
+      title="思い出"
+      eyebrow="自分だけの直島記録"
       description="写真・訪問・場所・音をCloudflare R2とD1へ残し、島で過ごした時間を育てます。"
     >
       <section className="stats-grid page-stats">
@@ -183,7 +184,7 @@ function MemoriesPage() {
         <Stat
           label="累計滞在"
           value={`${totalDays}日`}
-          detail={`${totalDays * 24} hours · 最後から${daysSinceLastVisit ?? '—'}日`}
+          detail={`${totalDays * 24}時間 · 最後から${daysSinceLastVisit ?? '—'}日`}
           tone="green"
         />
         <Stat
@@ -195,12 +196,12 @@ function MemoriesPage() {
         <Stat
           label="音の記録"
           value={`${data.audio.length}件`}
-          detail="Voice / Ambience"
+          detail="声・環境音"
           tone="coral"
         />
       </section>
       <section className="content-grid">
-        <Card title="直島滞在ログ" eyebrow="VISITS">
+        <Card title="直島滞在ログ" eyebrow="訪問記録">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -231,7 +232,7 @@ function MemoriesPage() {
             }}
           >
             <Field label="訪問タイトル">
-              <input name="title" placeholder="2026 Summer" required />
+              <input name="title" placeholder="例: 2026年 夏" required />
             </Field>
             <Field label="開始日">
               <input name="startDate" type="date" required />
@@ -287,7 +288,7 @@ function MemoriesPage() {
             </div>
           )}
         </Card>
-        <Card title="場所ごとの思い出" eyebrow="MEMORY MAP">
+        <Card title="場所ごとの思い出" eyebrow="思い出マップ">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -402,7 +403,7 @@ function MemoriesPage() {
         </Card>
       </section>
       <section className="content-grid">
-        <Card title="直島アルバム" eyebrow="R2 PHOTOS">
+        <Card title="直島アルバム" eyebrow="R2の写真">
           <form
             className="stack-form"
             encType="multipart/form-data"
@@ -488,7 +489,7 @@ function MemoriesPage() {
             </div>
           )}
         </Card>
-        <Card title="音声メモ / 環境音" eyebrow="R2 AUDIO">
+        <Card title="音声メモ / 環境音" eyebrow="R2の音声">
           <form
             className="stack-form"
             encType="multipart/form-data"
@@ -537,7 +538,7 @@ function MemoriesPage() {
                   <Play />
                 </span>
                 <div>
-                  <Badge>{audio.kind}</Badge>
+                  <Badge>{audioKindLabel(audio.kind)}</Badge>
                   <strong>{audio.title}</strong>
                   <audio controls preload="metadata" src={audio.audioUrl} />
                 </div>
@@ -559,7 +560,7 @@ function MemoriesPage() {
         </Card>
       </section>
       <section className="content-grid">
-        <Card title="次回訪問計画" eyebrow="NEXT VISIT">
+        <Card title="次回訪問計画" eyebrow="次の訪問">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -647,7 +648,7 @@ function MemoriesPage() {
             ))}
           </div>
         </Card>
-        <Card title="今日のランダム散歩" eyebrow="ISLAND QUEST">
+        <Card title="今日のランダム散歩" eyebrow="島での小さな冒険">
           <div className="random-quest">
             <MapPinned />
             <span>今日のクエスト</span>
@@ -707,7 +708,7 @@ function MemoriesPage() {
         <ExtraResourcePanel
           resource="albumPhotos"
           title="アルバムへ写真を追加"
-          description="アルバムIDと写真IDを選び、訪問ごとの並びを作ります。"
+          description="アルバムと写真を選び、訪問ごとの並びを作ります。"
           rows={data.extras.albumPhotos ?? []}
           fields={[
             { name: 'albumId', label: 'アルバムID', required: true },
@@ -854,7 +855,7 @@ function MemoriesPage() {
           ]}
         />
       </section>
-      <Card title="訪問アルバムを見る" eyebrow="VISIT STORIES">
+      <Card title="訪問アルバムを見る" eyebrow="訪問の思い出">
         {(data.extras.albums ?? []).length === 0 ? (
           <EmptyState title="アルバムはまだありません" />
         ) : (
@@ -877,7 +878,7 @@ function MemoriesPage() {
                     <p>{String(album.description ?? '訪問の写真')}</p>
                   </div>
                   {albumImages.length === 0 ? (
-                    <small>写真IDを追加すると、ここに並びます。</small>
+                    <small>写真の識別子を追加すると、ここに並びます。</small>
                   ) : (
                     <div className="album-strip">
                       {albumImages.map((photo) => (

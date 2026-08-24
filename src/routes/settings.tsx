@@ -64,20 +64,18 @@ function SettingsPage() {
   }
   return (
     <Page
-      title="Settings"
-      eyebrow="YOUR JOURNEY, YOUR RULES"
-      description="移住日とJourneyの基準値を更新します。環境変数やCloudflare IDはコードへ保存しません。"
+      title="設定"
+      eyebrow="自分だけの移住計画"
+      description="移住日と仮想距離の基準値を設定します。環境変数やCloudflare IDはコードへ保存しません。"
     >
       <section className="content-grid settings-grid">
-        <Card title="Journey設定" eyebrow="CORE SETTINGS">
+        <Card title="移住計画の基本設定" eyebrow="基本設定">
           <form className="settings-form" onSubmit={submit}>
             <Field label="移住目標日">
               <input
                 name="migrationTargetDate"
                 type="date"
-                defaultValue={
-                  data.settings?.migrationTargetDate ?? '2030-04-01'
-                }
+                defaultValue={data.settings?.migrationTargetDate ?? ''}
                 required
               />
             </Field>
@@ -85,10 +83,7 @@ function SettingsPage() {
               <input
                 name="journeyStartedAt"
                 type="date"
-                defaultValue={
-                  data.settings?.journeyStartedAt ??
-                  new Date().toISOString().slice(0, 10)
-                }
+                defaultValue={data.settings?.journeyStartedAt ?? ''}
                 required
               />
             </Field>
@@ -99,28 +94,28 @@ function SettingsPage() {
                 defaultValue={data.settings?.birthDate ?? ''}
               />
             </Field>
-            <Field label="仮想Journey距離（km）">
+            <Field label="仮想移動距離（km）">
               <input
                 name="virtualJourneyDistance"
                 type="number"
                 min="100"
                 max="100000"
-                defaultValue={data.settings?.virtualJourneyDistance ?? 1000}
+                defaultValue={data.settings?.virtualJourneyDistance ?? ''}
                 required
               />
             </Field>
             <SubmitButton pending={pending}>設定を保存</SubmitButton>
           </form>
         </Card>
-        <Card title="Cloudflare Storage" eyebrow="D1 + R2">
+        <Card title="Cloudflareストレージ" eyebrow="D1とR2">
           <div className="cloud-stack">
             <div>
               <Cloud />
               <span>
                 <strong>Cloudflare D1</strong>
-                <small>Mission・XP・資金・日記・メタデータ</small>
+                <small>行動・経験値・資金・日記・メタデータ</small>
               </span>
-              <b>BOUND</b>
+              <b>接続済み</b>
             </div>
             <div>
               <Cloud />
@@ -128,7 +123,7 @@ function SettingsPage() {
                 <strong>Cloudflare R2</strong>
                 <small>写真・音声のバイナリ</small>
               </span>
-              <b>BOUND</b>
+              <b>接続済み</b>
             </div>
             <p>
               <ShieldCheck size={15} />
@@ -136,7 +131,7 @@ function SettingsPage() {
             </p>
           </div>
         </Card>
-        <Card title="データを書き出す" eyebrow="PERSONAL BACKUP">
+        <Card title="データを書き出す" eyebrow="個人バックアップ">
           <p className="panel-description">
             現在表示できる構造化データをJSONとしてローカルへ保存します。R2の写真・音声本体は含みません。
           </p>
@@ -145,13 +140,13 @@ function SettingsPage() {
             JSONをダウンロード
           </button>
         </Card>
-        <Card title="ホーム画面 / ロック画面" eyebrow="PWA WIDGET">
+        <Card title="ホーム画面 / ロック画面" eyebrow="PWAウィジェット">
           <p className="panel-description">
             インストール可能なPWAと、カウントダウンを大きく表示するコンパクト画面を用意しています。
           </p>
           <Link to="/widget" className="button primary">
             <MonitorSmartphone size={16} />
-            Widget表示を開く
+            ウィジェット表示を開く
           </Link>
         </Card>
       </section>
