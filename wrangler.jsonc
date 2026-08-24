@@ -7,8 +7,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "naoshima-bound",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_name": "naosima-motivation",
+      "database_id": "b685e45a-ee07-4b56-afb7-f9ea1e3645e0",
       "migrations_dir": "drizzle/migrations",
     },
   ],
