@@ -38,6 +38,11 @@ export const Route = createRootRoute({
         rel: 'stylesheet',
         href: appCss,
       },
+      {
+        rel: 'icon',
+        type: 'image/jpeg',
+        href: '/media/photos/8a2cff7e-aa35-40b0-a31d-691ed23a5734.jpeg',
+      },
       { rel: 'manifest', href: '/manifest.webmanifest' },
     ],
   }),
