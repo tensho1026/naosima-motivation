@@ -99,18 +99,12 @@ pnpm db:migrate:remote
 pnpm db:generate
 ```
 
-## Seed
+## 開発用サンプルデータ
 
-開発用Seedには、2030-04-01の移住目標、6カテゴリの条件、Mission、Skill、資金、Career、未来の生活、訪問、Achievementなど、主要画面を確認できる代表データが入っています。`INSERT OR IGNORE` のため再実行できます。
+ローカルで画面を確認する場合に限り、開発用サンプルデータを投入できます。Cloudflare上の本番D1へ投入するコマンドは用意していません。本番ではアプリの「設定」を起点に、必要なデータを自分で登録してください。
 
 ```bash
 pnpm db:seed
-```
-
-リモートD1へ投入する場合:
-
-```bash
-pnpm db:seed:remote
 ```
 
 ## Development

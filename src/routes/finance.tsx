@@ -111,8 +111,8 @@ function FinancePage() {
   )
   return (
     <Page
-      title="Finance"
-      eyebrow="FUND THE FUTURE"
+      title="資金"
+      eyebrow="未来のためのお金"
       description="移住資金・生活費・達成予測を同じ場所で比較し、最短移住日を現実的に更新します。"
     >
       <section className="stats-grid page-stats">
@@ -146,7 +146,7 @@ function FinancePage() {
         />
       </section>
       <section className="content-grid">
-        <Card title="移住資金ゲージ" eyebrow="SAVINGS">
+        <Card title="移住資金ゲージ" eyebrow="貯金">
           <ProgressBar
             value={savingPercent}
             label={`${yen(data.finance?.currentSavings ?? 0)} / ${yen(data.finance?.targetSavings ?? 0)}`}
@@ -281,7 +281,7 @@ function FinancePage() {
             ))}
           </div>
         </Card>
-        <Card title="毎月の貯金記録" eyebrow="SAVINGS HISTORY">
+        <Card title="毎月の貯金記録" eyebrow="貯金履歴">
           <div className="chart-md">
             <ResponsiveContainer>
               <LineChart data={chartData}>
@@ -302,7 +302,7 @@ function FinancePage() {
         </Card>
       </section>
       <section className="content-grid">
-        <Card title="未来の生活シミュレーター" eyebrow="MONTHLY LIFE">
+        <Card title="未来の生活シミュレーター" eyebrow="毎月の暮らし">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -388,7 +388,7 @@ function FinancePage() {
             </article>
           ))}
         </Card>
-        <Card title="移住シナリオ比較" eyebrow="BRANCH SCENARIOS">
+        <Card title="移住シナリオ比較" eyebrow="複数案を比較">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -488,7 +488,10 @@ function FinancePage() {
             { name: 'note', label: 'メモ', type: 'textarea' },
           ]}
         />
-        <Card title="What If / 移住日スライダー" eyebrow="MOVE THE DATE">
+        <Card
+          title="もしもの試算 / 移住日スライダー"
+          eyebrow="日付を動かして試算"
+        >
           <div className="what-if-large">
             <PiggyBank />
             <label htmlFor="move-year">

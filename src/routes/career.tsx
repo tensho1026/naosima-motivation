@@ -26,6 +26,7 @@ import {
   updateCareerCondition,
 } from '#/server/core.functions'
 import { getDashboard } from '#/server/dashboard.functions'
+import { incomeTypeLabel } from '#/utils/display'
 
 export const Route = createFileRoute('/career')({
   loader: () => getDashboard(),
@@ -79,9 +80,9 @@ function CareerPage() {
     .map((item) => ({ name: item.name, value: item.monthlyAmount }))
   return (
     <Page
-      title="Career"
-      eyebrow="WORK FROM THE ISLAND"
-      description="どこでも働ける状態を、仕事条件・収入源・副収入Challengeで具体化します。"
+      title="仕事"
+      eyebrow="島から働く"
+      description="どこでも働ける状態を、仕事条件・収入源・副収入への挑戦で具体化します。"
     >
       <section className="stats-grid page-stats">
         <Stat
@@ -110,7 +111,7 @@ function CareerPage() {
         />
       </section>
       <section className="content-grid">
-        <Card title="仕事条件" eyebrow="CAREER CONDITIONS">
+        <Card title="仕事条件" eyebrow="働き方の条件">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -201,7 +202,7 @@ function CareerPage() {
             ))}
           </div>
         </Card>
-        <Card title="収入源マップ" eyebrow="INCOME SOURCES">
+        <Card title="収入源マップ" eyebrow="収入の内訳">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -231,7 +232,9 @@ function CareerPage() {
             <Field label="種類">
               <select name="type">
                 {sourceTypes.map((value) => (
-                  <option key={value}>{value}</option>
+                  <option key={value} value={value}>
+                    {incomeTypeLabel(value)}
+                  </option>
                 ))}
               </select>
             </Field>
@@ -271,7 +274,7 @@ function CareerPage() {
                 {data.career.sources.map((source) => (
                   <article className="list-row" key={source.id}>
                     <div>
-                      <Badge>{source.type}</Badge>
+                      <Badge>{incomeTypeLabel(source.type)}</Badge>
                       <strong>{source.name}</strong>
                       <p>{yen(source.monthlyAmount)} / 月</p>
                     </div>
@@ -295,7 +298,7 @@ function CareerPage() {
         </Card>
       </section>
       <section className="content-grid">
-        <Card title="副収入Challenge" eyebrow="LEVEL UP">
+        <Card title="副収入チャレンジ" eyebrow="段階的に伸ばす">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -316,14 +319,14 @@ function CareerPage() {
               )
             }}
           >
-            <Field label="Level">
+            <Field label="段階">
               <input name="level" type="number" min="1" max="100" required />
             </Field>
             <Field label="月額目標">
               <input name="monthlyAmount" type="number" min="0" required />
             </Field>
             <div className="form-actions">
-              <SubmitButton pending={pending}>Challenge追加</SubmitButton>
+              <SubmitButton pending={pending}>目標を追加</SubmitButton>
             </div>
           </form>
           <div className="challenge-path">
@@ -358,7 +361,7 @@ function CareerPage() {
             ))}
           </div>
         </Card>
-        <Card title="仕事独立度" eyebrow="WORK INDEPENDENCE">
+        <Card title="仕事独立度" eyebrow="働き方の自立度">
           <div className="freedom-visual">
             <Network />
             <strong>

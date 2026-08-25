@@ -41,6 +41,7 @@ import { completeMission } from '#/server/core.functions'
 import { getDashboard } from '#/server/dashboard.functions'
 import { calculateSavingForecast } from '#/services/finance.service'
 import { haversineDistanceKm } from '#/services/journey.service'
+import { categoryLabel, readyStatusLabel } from '#/utils/display'
 
 export const Route = createFileRoute('/')({
   loader: () => getDashboard(),
@@ -48,22 +49,13 @@ export const Route = createFileRoute('/')({
   pendingComponent: LoadingPage,
   errorComponent: ({ error }) => (
     <main className="app-page">
-      <Card title="Dashboardを読み込めませんでした">
+      <Card title="ホームを読み込めませんでした">
         <p>{error.message}</p>
-        <p>Cloudflare D1のmigrationとseedが適用済みか確認してください。</p>
+        <p>Cloudflare D1のマイグレーションと接続設定を確認してください。</p>
       </Card>
     </main>
   ),
 })
-
-const categoryLabels: Record<string, string> = {
-  MONEY: 'Money',
-  WORK: 'Work',
-  SKILL: 'Skills',
-  LIFESTYLE: 'Lifestyle',
-  NAOSHIMA: 'Naoshima',
-  CONNECTION: 'Connection',
-}
 
 function yen(value: number) {
   return `${Math.round(value).toLocaleString('ja-JP')}円`
@@ -97,7 +89,7 @@ function DashboardPage() {
   }, [heroPhotos.length])
   const radar = Object.entries(data.readiness.categories).map(
     ([key, value]) => ({
-      category: categoryLabels[key] ?? key,
+      category: categoryLabel(key),
       value,
     }),
   )
@@ -125,6 +117,21 @@ function DashboardPage() {
         })),
     [data.achievements],
   )
+
+  if (!data.settings) {
+    return (
+      <main className="app-page">
+        <Card title="最初に移住計画を設定しましょう" eyebrow="はじめの設定">
+          <p>
+            本番データベースにはサンプルデータを投入しません。移住目標日、準備を始める日、仮想移動距離を自分で設定するとホームが表示されます。
+          </p>
+          <Link to="/settings" className="button primary">
+            設定を始める <ArrowRight size={14} />
+          </Link>
+        </Card>
+      </main>
+    )
+  }
 
   async function finishMission(mission: {
     id: string
@@ -183,7 +190,7 @@ function DashboardPage() {
         }
       >
         <div>
-          <p className="eyebrow">THE JOURNEY CONTINUES</p>
+          <p className="eyebrow">旅は続く</p>
           <h1>
             {data.countdown.reached ? (
               '移住目標日を迎えました'
@@ -223,7 +230,7 @@ function DashboardPage() {
           <span
             className={`ready-status status-${data.readyStatus.toLowerCase().replaceAll('_', '-')}`}
           >
-            {data.readyStatus.replaceAll('_', ' ')}
+            {readyStatusLabel(data.readyStatus)}
           </span>
         </div>
       </section>
@@ -236,7 +243,7 @@ function DashboardPage() {
           tone="green"
         />
         <Stat
-          label="Life XP"
+          label="人生経験値"
           value={`${data.totalXp.toLocaleString()} XP`}
           detail={`Lv.${data.xpLevel.level} ${data.xpLevel.title}`}
           tone="gold"
@@ -248,9 +255,9 @@ function DashboardPage() {
           tone="sea"
         />
         <Stat
-          label="No Zero Week"
+          label="行動ゼロの週を作らない"
           value={data.noZeroWeek.achieved ? '達成中' : 'あと一歩'}
-          detail={`今週 ${data.noZeroWeek.actionCount} actions · ${data.streak}日 streak`}
+          detail={`今週 ${data.noZeroWeek.actionCount}件 · ${data.streak}日連続`}
           tone="coral"
         />
       </section>
@@ -258,14 +265,14 @@ function DashboardPage() {
       <section className="dashboard-grid">
         <Card
           title="今日の一歩"
-          eyebrow="ONE STEP TODAY"
+          eyebrow="今日の一歩"
           className="wide today-card"
         >
           {data.todayStep ? (
             <div className="today-step">
               <div className="impact-orb">{data.todayStep.impactScore}</div>
               <div>
-                <span>{data.todayStep.category} · IMPACT</span>
+                <span>{categoryLabel(data.todayStep.category)} · 影響度</span>
                 <h3>{data.todayStep.title}</h3>
                 <p>
                   {data.todayStep.description ??
@@ -278,11 +285,11 @@ function DashboardPage() {
               </button>
             </div>
           ) : (
-            <p>今日のMissionはすべて完了しました。よく進みました。</p>
+            <p>今日の行動はすべて完了しました。よく進みました。</p>
           )}
         </Card>
 
-        <Card title="直島生活まで、あと" eyebrow="THE FOUR GAPS">
+        <Card title="直島生活まで、あと" eyebrow="残っていること">
           {data.gaps.length > 0 ? (
             <div className="gap-list">
               {data.gaps.slice(0, 4).map((gap) => (
@@ -297,7 +304,7 @@ function DashboardPage() {
           )}
         </Card>
 
-        <Card title="今週の活動" eyebrow="WEEKLY LIFE XP">
+        <Card title="今週の活動" eyebrow="週間の人生経験値">
           <div className="chart-sm weekly-chart">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={data.weeklyActivity}>
@@ -307,7 +314,7 @@ function DashboardPage() {
                 <Tooltip formatter={(value) => `${Number(value)} XP`} />
                 <Bar
                   dataKey="xp"
-                  name="Life XP"
+                  name="人生経験値"
                   fill="#4fb8b2"
                   radius={[6, 6, 0, 0]}
                 />
@@ -320,7 +327,7 @@ function DashboardPage() {
           </p>
         </Card>
 
-        <Card title="島時間" eyebrow="NAOSHIMA NOW">
+        <Card title="島時間" eyebrow="いまの直島">
           <div className="sun-times">
             <div>
               <SunMedium />
@@ -347,7 +354,7 @@ function DashboardPage() {
           </button>
         </Card>
 
-        <Card title="準備バランス" eyebrow="READINESS RADAR">
+        <Card title="準備バランス" eyebrow="準備度レーダー">
           <div className="chart-sm">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radar} outerRadius="68%">
@@ -372,12 +379,12 @@ function DashboardPage() {
 
         <Card
           title="6つの移住条件"
-          eyebrow="WHAT IS MISSING"
+          eyebrow="不足していること"
           className="wide"
           action={
             data.activeFocus ? (
               <Badge tone="gold">
-                FOCUS: {String(data.activeFocus.category)}
+                集中: {categoryLabel(String(data.activeFocus.category))}
               </Badge>
             ) : null
           }
@@ -391,7 +398,7 @@ function DashboardPage() {
                   : undefined
               }
             >
-              <ProgressBar label={categoryLabels[key] ?? key} value={value} />
+              <ProgressBar label={categoryLabel(key)} value={value} />
             </div>
           ))}
           <Link to="/journey" className="text-link">
@@ -399,7 +406,7 @@ function DashboardPage() {
           </Link>
         </Card>
 
-        <Card title="逆算カレンダー" eyebrow="BACKCASTING">
+        <Card title="逆算カレンダー" eyebrow="目標から逆算">
           <ol className="backcast-list">
             <li>
               <span>今年</span>
@@ -416,7 +423,7 @@ function DashboardPage() {
           </ol>
         </Card>
 
-        <Card title="資金ペース" eyebrow="FORECAST">
+        <Card title="資金ペース" eyebrow="達成予測">
           <div className="forecast-date">
             <CalendarClock />
             <strong>{data.forecast?.projectedDate ?? '予測待ち'}</strong>
@@ -424,7 +431,7 @@ function DashboardPage() {
           </div>
           <p className="pace-label">{data.pace.status}</p>
           <label className="what-if">
-            What if: 毎月さらに <strong>{yen(extraSaving)}</strong>
+            もし毎月さらに <strong>{yen(extraSaving)}</strong> 貯めたら
             <input
               type="range"
               min="0"
@@ -439,7 +446,7 @@ function DashboardPage() {
           </p>
         </Card>
 
-        <Card title="働く自由度" eyebrow="WORK FREEDOM">
+        <Card title="働く自由度" eyebrow="仕事の自由度">
           <div
             className="score-ring"
             style={
@@ -464,7 +471,7 @@ function DashboardPage() {
 
         <Card
           title="年間アクティビティ"
-          eyebrow="NO PRESSURE HEATMAP"
+          eyebrow="無理なく続けた記録"
           className="wide"
         >
           <div className="heatmap" aria-label="年間行動ヒートマップ">
@@ -479,16 +486,16 @@ function DashboardPage() {
           <div className="heatmap-caption">
             <span>
               <Flame size={14} />
-              累計 {data.actions.length} actions
+              累計 {data.actions.length}件
             </span>
             <span>濃いほど一歩を重ねた日</span>
           </div>
         </Card>
 
-        <Card title="直島にいた時間" eyebrow="ISLAND TIME">
+        <Card title="直島にいた時間" eyebrow="島で過ごした時間">
           <div className="island-time">
             <strong>{data.visitStats.totalHours.toLocaleString()}</strong>
-            <span>hours</span>
+            <span>時間</span>
           </div>
           <p>
             {data.visitStats.visits}回訪問 · {data.visitStats.totalDays}日滞在 ·
@@ -499,7 +506,7 @@ function DashboardPage() {
           </Link>
         </Card>
 
-        <Card title="Action History" eyebrow="RECENT STEPS">
+        <Card title="行動履歴" eyebrow="最近の一歩">
           {data.actions.length === 0 ? (
             <p>最初の一歩を完了すると、ここに積み重ねが残ります。</p>
           ) : (
@@ -522,18 +529,16 @@ function DashboardPage() {
           )}
         </Card>
 
-        <Card title="Recent Achievements" eyebrow="PROOF OF PROGRESS">
+        <Card title="最近の称号" eyebrow="前進した証し">
           {recentAchievements.length === 0 ? (
-            <p>最初のMissionを完了すると、ここに称号が残ります。</p>
+            <p>最初の行動を完了すると、ここに称号が残ります。</p>
           ) : (
             <div className="recent-achievements">
               {recentAchievements.map((achievement) => (
                 <div key={achievement.id}>
                   <Sparkles />
                   <span>
-                    <strong>
-                      {achievement.definition?.title ?? 'Achievement'}
-                    </strong>
+                    <strong>{achievement.definition?.title ?? '称号'}</strong>
                     <small>
                       {achievement.unlockedAt.toLocaleDateString('ja-JP')}
                     </small>
@@ -544,7 +549,7 @@ function DashboardPage() {
           )}
         </Card>
 
-        <Card title="ランダム直島" eyebrow="PHOTO · MEMORY · PLACE · WHY">
+        <Card title="ランダム直島" eyebrow="写真・思い出・場所・理由">
           {data.randomNaoshima?.kind === 'PHOTO' &&
           'imageUrl' in data.randomNaoshima.value ? (
             <img
@@ -599,7 +604,7 @@ function DashboardPage() {
           className="modal-backdrop"
           role="dialog"
           aria-modal="true"
-          aria-label="Motivation Emergency"
+          aria-label="やる気が出ないときの応援"
         >
           <section className="emergency-modal">
             <button
@@ -609,7 +614,7 @@ function DashboardPage() {
             >
               <X />
             </button>
-            <p className="eyebrow">MOTIVATION EMERGENCY</p>
+            <p className="eyebrow">やる気が出ないとき</p>
             <h2>今日は、5分だけでいい。</h2>
             {data.photos.find((photo) => photo.favorite) ? (
               <img
@@ -644,7 +649,7 @@ function DashboardPage() {
                 {
                   data.missions.filter((mission) => mission.completed).length
                 }{' '}
-                Missions
+                件の行動
               </span>
             </div>
             {data.minimumMission ? (

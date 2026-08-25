@@ -16,14 +16,18 @@ function WidgetPage() {
     <main className="widget-page">
       <Link to="/" className="widget-back">
         <ArrowLeft />
-        Dashboard
+        ホーム
       </Link>
       <section className="widget-card">
         <Waves className="widget-wave" />
-        <p>NAOSHIMA BOUND</p>
-        <h1>
-          あと <strong>{data.countdown.days.toLocaleString()}</strong> 日
-        </h1>
+        <p>直島移住への旅</p>
+        {data.settings ? (
+          <h1>
+            あと <strong>{data.countdown.days.toLocaleString()}</strong> 日
+          </h1>
+        ) : (
+          <h1>移住計画を設定してください</h1>
+        )}
         <ProgressBar
           value={data.readiness.overall}
           label={`今月の準備度 ${Math.round(data.readiness.overall)}%`}
@@ -31,7 +35,7 @@ function WidgetPage() {
         <div className="widget-step">
           <Footprints />
           <span>今日の一歩</span>
-          <strong>{data.todayStep?.title ?? '今日のMissionは完了'}</strong>
+          <strong>{data.todayStep?.title ?? '今日の行動は完了'}</strong>
         </div>
         <blockquote>
           {data.reasons[0]?.content ?? '今日の一歩を、島で暮らす未来へ。'}

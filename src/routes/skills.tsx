@@ -16,6 +16,7 @@ import {
 import { useToast } from '#/components/ui/Toast'
 import { addSkillXp, createSkill, deleteSkill } from '#/server/core.functions'
 import { getDashboard } from '#/server/dashboard.functions'
+import { skillStatusLabel } from '#/utils/display'
 
 export const Route = createFileRoute('/skills')({
   loader: () => getDashboard(),
@@ -60,13 +61,13 @@ function SkillsPage() {
     : 0
   return (
     <Page
-      title="Skills"
-      eyebrow="SKILLS FOR ISLAND LIFE"
-      description="直島で働くために必要なスキルだけを木として育て、MissionのXPと接続します。"
+      title="スキル"
+      eyebrow="島で暮らすための力"
+      description="直島で働くために必要なスキルだけを木として育て、行動で得た経験値と接続します。"
     >
       <section className="stats-grid page-stats">
         <Stat
-          label="登録Skill"
+          label="登録スキル"
           value={data.skills.length}
           detail="必要なものに集中"
           tone="sea"
@@ -74,27 +75,27 @@ function SkillsPage() {
         <Stat
           label="平均進捗"
           value={`${Math.round(average)}%`}
-          detail="目標Levelとの比較"
+          detail="目標レベルとの比較"
           tone="green"
         />
         <Stat
-          label="Skill Mission"
+          label="スキルに関する行動"
           value={
             data.missions.filter((mission) => mission.category === 'SKILL')
               .length
           }
-          detail="完了でSkill XPへ"
+          detail="完了でスキル経験値へ"
           tone="gold"
         />
         <Stat
-          label="総Life XP"
+          label="総人生経験値"
           value={data.totalXp}
-          detail={`Migration Lv.${data.xpLevel.level}`}
+          detail={`移住レベル ${data.xpLevel.level}`}
           tone="coral"
         />
       </section>
       <section className="content-grid skills-layout">
-        <Card title="Skillを登録" eyebrow="NEW SKILL">
+        <Card title="スキルを登録" eyebrow="新しいスキル">
           <form
             className="stack-form"
             onSubmit={(event) => {
@@ -116,18 +117,18 @@ function SkillsPage() {
                         'LOCKED' | 'LEARNING' | 'ACHIEVED',
                     },
                   }),
-                'Skillを追加しました',
+                'スキルを追加しました',
                 form,
               )
             }}
           >
-            <Field label="Skill名">
+            <Field label="スキル名">
               <input name="name" placeholder="Go" required />
             </Field>
             <Field label="カテゴリ">
-              <input name="category" placeholder="Backend" required />
+              <input name="category" placeholder="例: バックエンド" required />
             </Field>
-            <Field label="現在Level">
+            <Field label="現在レベル">
               <input
                 name="level"
                 type="number"
@@ -137,7 +138,7 @@ function SkillsPage() {
                 required
               />
             </Field>
-            <Field label="目標Level">
+            <Field label="目標レベル">
               <input
                 name="targetLevel"
                 type="number"
@@ -147,7 +148,7 @@ function SkillsPage() {
                 required
               />
             </Field>
-            <Field label="親Skill">
+            <Field label="親スキル">
               <select name="parentSkillId">
                 <option value="">なし</option>
                 {data.skills.map((skill) => (
@@ -159,17 +160,17 @@ function SkillsPage() {
             </Field>
             <Field label="状態">
               <select name="status">
-                <option value="LEARNING">LEARNING</option>
-                <option value="LOCKED">LOCKED</option>
-                <option value="ACHIEVED">ACHIEVED</option>
+                <option value="LEARNING">{skillStatusLabel('LEARNING')}</option>
+                <option value="LOCKED">{skillStatusLabel('LOCKED')}</option>
+                <option value="ACHIEVED">{skillStatusLabel('ACHIEVED')}</option>
               </select>
             </Field>
             <div className="form-actions">
-              <SubmitButton pending={pending}>Skill追加</SubmitButton>
+              <SubmitButton pending={pending}>スキルを追加</SubmitButton>
             </div>
           </form>
         </Card>
-        <Card title="Skill Tree" eyebrow="DEPENDENCIES">
+        <Card title="スキルツリー" eyebrow="スキル同士の関係">
           <div className="skill-tree">
             {data.skills.map((skill) => {
               const parent = data.skills.find(
@@ -221,11 +222,11 @@ function SkillsPage() {
                       className="icon-button danger"
                       onClick={() =>
                         window.confirm(
-                          'Skillを削除しますか？ Missionとの紐付けは解除されます。',
+                          'スキルを削除しますか？ 行動との紐付けは解除されます。',
                         ) &&
                         run(
                           () => remove({ data: { id: skill.id } }),
-                          'Skillを削除しました',
+                          'スキルを削除しました',
                         )
                       }
                     >
@@ -238,7 +239,7 @@ function SkillsPage() {
           </div>
         </Card>
       </section>
-      <Card title="Skillに紐づくMission" eyebrow="ACTION → GROWTH">
+      <Card title="スキルに紐づく行動" eyebrow="行動から成長へ">
         <div className="skill-mission-grid">
           {data.skills.map((skill) => (
             <div key={skill.id}>

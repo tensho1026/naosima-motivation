@@ -20,6 +20,7 @@ import { Route as MissionsRouteImport } from './routes/missions'
 import { Route as ReviewsRouteImport } from './routes/reviews'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SkillsRouteImport } from './routes/skills'
+import { Route as TodosRouteImport } from './routes/todos'
 import { Route as WidgetRouteImport } from './routes/widget'
 import { Route as MediaSplatRouteImport } from './routes/media/$'
 
@@ -78,6 +79,11 @@ const SkillsRoute = SkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TodosRoute = TodosRouteImport.update({
+  id: '/todos',
+  path: '/todos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WidgetRoute = WidgetRouteImport.update({
   id: '/widget',
   path: '/widget',
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
+  '/todos': typeof TodosRoute
   '/widget': typeof WidgetRoute
   '/media/$': typeof MediaSplatRoute
 }
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
+  '/todos': typeof TodosRoute
   '/widget': typeof WidgetRoute
   '/media/$': typeof MediaSplatRoute
 }
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/reviews': typeof ReviewsRoute
   '/settings': typeof SettingsRoute
   '/skills': typeof SkillsRoute
+  '/todos': typeof TodosRoute
   '/widget': typeof WidgetRoute
   '/media/$': typeof MediaSplatRoute
 }
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/reviews'
     | '/settings'
     | '/skills'
+    | '/todos'
     | '/widget'
     | '/media/$'
   fileRoutesByTo: FileRoutesByTo
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/reviews'
     | '/settings'
     | '/skills'
+    | '/todos'
     | '/widget'
     | '/media/$'
   id:
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/reviews'
     | '/settings'
     | '/skills'
+    | '/todos'
     | '/widget'
     | '/media/$'
   fileRoutesById: FileRoutesById
@@ -195,6 +207,7 @@ export interface RootRouteChildren {
   ReviewsRoute: typeof ReviewsRoute
   SettingsRoute: typeof SettingsRoute
   SkillsRoute: typeof SkillsRoute
+  TodosRoute: typeof TodosRoute
   WidgetRoute: typeof WidgetRoute
   MediaSplatRoute: typeof MediaSplatRoute
 }
@@ -278,6 +291,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/todos': {
+      id: '/todos'
+      path: '/todos'
+      fullPath: '/todos'
+      preLoaderRoute: typeof TodosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/widget': {
       id: '/widget'
       path: '/widget'
@@ -307,6 +327,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReviewsRoute: ReviewsRoute,
   SettingsRoute: SettingsRoute,
   SkillsRoute: SkillsRoute,
+  TodosRoute: TodosRoute,
   WidgetRoute: WidgetRoute,
   MediaSplatRoute: MediaSplatRoute,
 }

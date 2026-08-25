@@ -20,6 +20,7 @@ import {
   uncompleteMission,
 } from '#/server/core.functions'
 import { getDashboard } from '#/server/dashboard.functions'
+import { categoryLabel } from '#/utils/display'
 
 export const Route = createFileRoute('/missions')({
   loader: () => getDashboard(),
@@ -87,7 +88,7 @@ function MissionsPage() {
         },
       })
       event.currentTarget.reset()
-      notify('Missionを作成しました')
+      notify('行動を作成しました')
       await router.invalidate({ sync: true })
     } catch (error) {
       notify(
@@ -101,16 +102,16 @@ function MissionsPage() {
   const missions = data.missions.filter((mission) => mission.type === tab)
   return (
     <Page
-      title="Missions"
-      eyebrow="TODAY BECOMES THE FUTURE"
-      description="行動を完了するとXPとスキル経験値、行動履歴へ同時に反映されます。"
+      title="行動"
+      eyebrow="今日が未来をつくる"
+      description="行動を完了すると経験値とスキル経験値、行動履歴へ同時に反映されます。"
     >
       <section className="stats-grid page-stats">
         <div className="stat stat-sea">
           <span>今週の行動</span>
           <strong>{data.noZeroWeek.actionCount}</strong>
           <small>
-            No Zero Week {data.noZeroWeek.achieved ? '達成' : '未達'}
+            行動ゼロの週を作らない: {data.noZeroWeek.achieved ? '達成' : '未達'}
           </small>
         </div>
         <div className="stat stat-gold">
@@ -119,7 +120,7 @@ function MissionsPage() {
           <small>プレッシャーは小さく、記録は長く</small>
         </div>
         <div className="stat stat-green">
-          <span>完了Mission</span>
+          <span>完了した行動</span>
           <strong>
             {data.missions.filter((item) => item.completed).length}
           </strong>
@@ -132,9 +133,9 @@ function MissionsPage() {
         </div>
       </section>
       <section className="content-grid mission-layout">
-        <Card title="Missionを作る" eyebrow="NEW ACTION">
+        <Card title="行動を作る" eyebrow="新しい一歩">
           <form className="stack-form" onSubmit={submit}>
-            <Field label="Mission">
+            <Field label="行動名">
               <input name="title" required maxLength={120} />
             </Field>
             <Field label="種類">
@@ -151,14 +152,14 @@ function MissionsPage() {
                 ))}
               </select>
             </Field>
-            <Field label="予定日（Daily）">
+            <Field label="予定日（毎日）">
               <input
                 name="scheduledDate"
                 type="date"
                 defaultValue={new Date().toISOString().slice(0, 10)}
               />
             </Field>
-            <Field label="月（Monthly）">
+            <Field label="月（毎月）">
               <input
                 name="month"
                 type="number"
@@ -167,7 +168,7 @@ function MissionsPage() {
                 defaultValue={new Date().getMonth() + 1}
               />
             </Field>
-            <Field label="年（Yearly）">
+            <Field label="年（毎年）">
               <input
                 name="year"
                 type="number"
@@ -186,7 +187,7 @@ function MissionsPage() {
                 required
               />
             </Field>
-            <Field label="Impact 1〜5">
+            <Field label="影響度 1〜5">
               <input
                 name="impactScore"
                 type="number"
@@ -206,7 +207,7 @@ function MissionsPage() {
                 required
               />
             </Field>
-            <Field label="紐づくSkill">
+            <Field label="紐づくスキル">
               <select name="skillId">
                 <option value="">なし</option>
                 {data.skills.map((skill) => (
@@ -216,7 +217,7 @@ function MissionsPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Minimum Mission">
+            <Field label="最低限の行動">
               <input name="minimumTitle" placeholder="5分だけやる内容" />
             </Field>
             <Field label="最小時間">
@@ -236,11 +237,11 @@ function MissionsPage() {
               今週の最優先1つ
             </label>
             <div className="form-actions">
-              <SubmitButton pending={pending}>Missionを追加</SubmitButton>
+              <SubmitButton pending={pending}>行動を追加</SubmitButton>
             </div>
           </form>
         </Card>
-        <Card title="Mission Board" eyebrow="DAILY · MONTHLY · YEARLY">
+        <Card title="行動一覧" eyebrow="毎日・毎月・毎年">
           <div className="tabs">
             {types.map((value) => (
               <button
@@ -270,7 +271,7 @@ function MissionsPage() {
                             ? undo({ data: { id: mission.id } })
                             : finish({ data: { id: mission.id } }),
                         mission.completed
-                          ? 'Missionを未完了に戻しました'
+                          ? '行動を未完了に戻しました'
                           : `+${mission.xp} XP`,
                       )
                     }
@@ -283,7 +284,7 @@ function MissionsPage() {
                   </button>
                   <div className="mission-copy">
                     <div>
-                      <Badge>{mission.category}</Badge>
+                      <Badge>{categoryLabel(mission.category)}</Badge>
                       {mission.weeklyPriority ? (
                         <Badge tone="gold">
                           <Star size={11} /> PRIORITY
@@ -304,7 +305,7 @@ function MissionsPage() {
                   </div>
                   <div
                     className="impact-dots"
-                    aria-label={`Impact ${mission.impactScore}`}
+                    aria-label={`影響度 ${mission.impactScore}`}
                   >
                     {Array.from({ length: 5 }, (_, index) => (
                       <Zap
@@ -317,10 +318,10 @@ function MissionsPage() {
                   <button
                     className="icon-button danger"
                     onClick={() =>
-                      window.confirm('Missionを削除しますか？') &&
+                      window.confirm('行動を削除しますか？') &&
                       mutate(
                         () => remove({ data: { id: mission.id } }),
-                        'Missionを削除しました',
+                        '行動を削除しました',
                       )
                     }
                   >
@@ -334,7 +335,7 @@ function MissionsPage() {
       </section>
       <Card
         title="年間アクティビティ"
-        eyebrow="ACTION HEATMAP"
+        eyebrow="行動ヒートマップ"
         className="activity-panel"
       >
         <div className="heatmap">
