@@ -9,6 +9,7 @@ import {
   Heart,
   Images,
   LayoutDashboard,
+  ListTodo,
   Sparkles,
   Trophy,
 } from 'lucide-react'
@@ -19,6 +20,7 @@ const navItems = [
   { to: '/', label: 'ホーム', icon: LayoutDashboard },
   { to: '/journey', label: '移住計画', icon: Compass },
   { to: '/missions', label: '行動', icon: CalendarCheck2 },
+  { to: '/todos', label: 'Todo', icon: ListTodo },
   { to: '/finance', label: '資金', icon: Banknote },
   { to: '/career', label: '仕事', icon: BriefcaseBusiness },
   { to: '/skills', label: 'スキル', icon: Sparkles },
@@ -33,7 +35,7 @@ const mobileNavItems = [
   { to: '/', label: 'ホーム', icon: LayoutDashboard },
   { to: '/journey', label: '移住計画', icon: Compass },
   { to: '/missions', label: '行動', icon: CalendarCheck2 },
-  { to: '/future', label: '未来', icon: Flag },
+  { to: '/todos', label: 'Todo', icon: ListTodo },
   { to: '/settings', label: 'その他', icon: CircleUserRound },
 ] as const
 
