@@ -1,3 +1,14 @@
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
+// Disabled in the lean feature set. The original implementation is archived
+// below and can be restored with the README instructions.
+export const Route = createFileRoute('/future')({
+  beforeLoad: () => {
+    throw redirect({ to: '/' })
+  },
+})
+
+/* FEATURE_ARCHIVE_BEGIN: original /future implementation
 import { useServerFn } from '@tanstack/react-start'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import {
@@ -678,3 +689,4 @@ function FuturePage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

@@ -1,5 +1,238 @@
 import { useServerFn } from '@tanstack/react-start'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { Trash2 } from 'lucide-react'
+import { useState } from 'react'
+
+import {
+  Card,
+  Field,
+  LoadingPage,
+  Page,
+  ProgressBar,
+  Stat,
+  SubmitButton,
+} from '#/components/ui/Primitives'
+import { useToast } from '#/components/ui/Toast'
+import {
+  createSavingTransactionLean,
+  deleteSavingTransaction,
+  updateFinanceSettingsLean,
+} from '#/server/core.functions'
+import { getFinanceDashboard } from '#/server/dashboard.functions'
+
+export const Route = createFileRoute('/finance')({
+  loader: () => getFinanceDashboard(),
+  component: LeanFinancePage,
+  pendingComponent: LoadingPage,
+})
+
+const leanYen = (value: number) =>
+  `${Math.round(value).toLocaleString('ja-JP')}円`
+
+function LeanFinancePage() {
+  const data = Route.useLoaderData()
+  const router = useRouter()
+  const { notify } = useToast()
+  const saveSettings = useServerFn(updateFinanceSettingsLean)
+  const addSaving = useServerFn(createSavingTransactionLean)
+  const removeSaving = useServerFn(deleteSavingTransaction)
+  const [pending, setPending] = useState(false)
+
+  async function run(action: () => Promise<unknown>, message: string) {
+    setPending(true)
+    try {
+      await action()
+      notify(message)
+      await router.invalidate({ sync: true })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '処理に失敗しました',
+        'error',
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const current = data.finance?.currentSavings ?? 0
+  const target = data.finance?.targetSavings ?? 2_000_000
+  const remaining = Math.max(target - current, 0)
+  const percent = target > 0 ? (current / target) * 100 : 0
+
+  return (
+    <Page
+      title="資金"
+      eyebrow="移住資金"
+      description="現在額、目標額、入出金、達成予測だけを管理します。"
+    >
+      <section className="stats-grid page-stats">
+        <Stat label="現在額" value={leanYen(current)} tone="green" />
+        <Stat label="目標まで" value={leanYen(remaining)} tone="coral" />
+        <Stat
+          label="毎月の目標"
+          value={leanYen(data.finance?.monthlySavingTarget ?? 0)}
+          tone="gold"
+        />
+        <Stat
+          label="達成予測"
+          value={data.forecast?.projectedDate ?? '予測待ち'}
+          detail={
+            data.averageMonthlySaving > 0
+              ? `直近平均 ${leanYen(data.averageMonthlySaving)}`
+              : '記録を追加すると予測できます'
+          }
+          tone="sea"
+        />
+      </section>
+
+      <ProgressBar
+        value={percent}
+        label={`${leanYen(current)} / ${leanYen(target)}`}
+      />
+
+      <section className="content-grid">
+        <Card title="資金設定" eyebrow="目標">
+          <form
+            className="stack-form"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const values = new FormData(event.currentTarget)
+              await run(
+                () =>
+                  saveSettings({
+                    data: {
+                      currentSavings: Number(values.get('currentSavings')),
+                      targetSavings: Number(values.get('targetSavings')),
+                      monthlySavingTarget: Number(
+                        values.get('monthlySavingTarget'),
+                      ),
+                    },
+                  }),
+                '資金設定を更新しました',
+              )
+            }}
+          >
+            <Field label="現在額">
+              <input
+                name="currentSavings"
+                type="number"
+                min="0"
+                defaultValue={current}
+                required
+              />
+            </Field>
+            <Field label="目標額">
+              <input
+                name="targetSavings"
+                type="number"
+                min="1"
+                defaultValue={target}
+                required
+              />
+            </Field>
+            <Field label="毎月の目標">
+              <input
+                name="monthlySavingTarget"
+                type="number"
+                min="0"
+                defaultValue={data.finance?.monthlySavingTarget ?? 50_000}
+                required
+              />
+            </Field>
+            <SubmitButton pending={pending}>設定を更新</SubmitButton>
+          </form>
+        </Card>
+
+        <Card title="入出金を記録" eyebrow="履歴">
+          <form
+            className="stack-form"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const form = event.currentTarget
+              const values = new FormData(form)
+              await run(
+                () =>
+                  addSaving({
+                    data: {
+                      amount: Number(values.get('amount')),
+                      type: String(values.get('type')) as
+                        'DEPOSIT' | 'WITHDRAWAL',
+                      note: String(values.get('note') || '') || null,
+                      date: String(values.get('date')),
+                    },
+                  }),
+                '資金記録を追加しました',
+              )
+              form.reset()
+            }}
+          >
+            <Field label="金額">
+              <input name="amount" type="number" min="1" required />
+            </Field>
+            <Field label="種類">
+              <select name="type">
+                <option value="DEPOSIT">追加</option>
+                <option value="WITHDRAWAL">減額</option>
+              </select>
+            </Field>
+            <Field label="日付">
+              <input
+                name="date"
+                type="date"
+                defaultValue={new Date().toISOString().slice(0, 10)}
+                required
+              />
+            </Field>
+            <Field label="メモ">
+              <input name="note" />
+            </Field>
+            <SubmitButton pending={pending}>記録する</SubmitButton>
+          </form>
+
+          <div className="item-list">
+            {data.savings.slice(0, 20).map((row) => (
+              <article className="list-row" key={row.id}>
+                <div>
+                  <strong
+                    className={
+                      row.type === 'DEPOSIT' ? 'money-plus' : 'money-minus'
+                    }
+                  >
+                    {row.type === 'DEPOSIT' ? '+' : '-'}
+                    {leanYen(row.amount)}
+                  </strong>
+                  <p>
+                    {row.date} · {row.note ?? 'メモなし'}
+                  </p>
+                </div>
+                <button
+                  className="icon-button danger"
+                  onClick={() =>
+                    window.confirm('削除して残高を戻しますか？') &&
+                    run(
+                      () => removeSaving({ data: { id: row.id } }),
+                      '記録を削除しました',
+                    )
+                  }
+                >
+                  <Trash2 size={14} />
+                </button>
+              </article>
+            ))}
+          </div>
+        </Card>
+      </section>
+    </Page>
+  )
+}
+
+/* FEATURE_ARCHIVE_BEGIN: original finance dashboard
+ *
+ * Restore this block for charts, future-life simulation, migration scenario
+ * comparison, fixed-cost logs, runway/daily-cost metrics, and date sliders.
+ *
+import { useServerFn } from '@tanstack/react-start'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { PiggyBank, Trash2, TrendingUp, WalletCards } from 'lucide-react'
 import { differenceInCalendarMonths } from 'date-fns'
 import { useState } from 'react'
@@ -519,3 +752,4 @@ function FinancePage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

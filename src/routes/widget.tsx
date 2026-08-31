@@ -1,3 +1,14 @@
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
+// Disabled in the lean feature set. The PWA itself remains installable; only
+// the separate countdown widget route is archived below.
+export const Route = createFileRoute('/widget')({
+  beforeLoad: () => {
+    throw redirect({ to: '/' })
+  },
+})
+
+/* FEATURE_ARCHIVE_BEGIN: original /widget implementation
 import { Link, createFileRoute } from '@tanstack/react-router'
 import { ArrowLeft, Footprints, Waves } from 'lucide-react'
 
@@ -44,3 +55,4 @@ function WidgetPage() {
     </main>
   )
 }
+FEATURE_ARCHIVE_END */

@@ -1,6 +1,152 @@
 import { createServerFn } from '@tanstack/react-start'
 
 import {
+  averageRecentMonthlySaving,
+  calculateSavingForecast,
+} from '#/services/finance.service'
+import { calculateCountdown } from '#/services/journey.service'
+import {
+  calculateReadiness,
+  calculateReadyStatus,
+} from '#/services/readiness.service'
+
+import { coreRepository } from './core-repository.server'
+
+function pickNextMission<
+  T extends {
+    completed: boolean
+    weeklyPriority: boolean
+    scheduledDate: string | null
+    impactScore: number
+  },
+>(missions: T[]) {
+  const today = new Date().toISOString().slice(0, 10)
+  const incomplete = missions.filter((mission) => !mission.completed)
+
+  return (
+    incomplete.find((mission) => mission.weeklyPriority) ??
+    incomplete.find((mission) => mission.scheduledDate === today) ??
+    [...incomplete].sort(
+      (left, right) => right.impactScore - left.impactScore,
+    )[0] ??
+    null
+  )
+}
+
+/**
+ * Lean home loader: five focused D1 reads instead of the former all-feature
+ * dashboard aggregate. No Career, Skills, memories, future content, XP,
+ * achievements, action history, or generic extra resources are fetched.
+ */
+export const getHomeDashboard = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const repository = coreRepository()
+    const [settings, conditions, missions, finance, savings] =
+      await Promise.all([
+        repository.getSettings(),
+        repository.listConditions(),
+        repository.listMissions(),
+        repository.getFinanceSettings(),
+        repository.listRecentSavings(),
+      ])
+    const readiness = calculateReadiness(conditions)
+    const averageMonthlySaving = averageRecentMonthlySaving(savings)
+    const forecast = finance
+      ? calculateSavingForecast({
+          currentSavings: finance.currentSavings,
+          targetSavings: finance.targetSavings,
+          averageMonthlySaving,
+          fallbackMonthlySaving: finance.monthlySavingTarget,
+        })
+      : null
+
+    return {
+      settings,
+      countdown: calculateCountdown(
+        settings?.migrationTargetDate ?? new Date().toISOString().slice(0, 10),
+      ),
+      readiness,
+      readyStatus: calculateReadyStatus(conditions),
+      conditionsRemaining: conditions.filter(
+        (condition) => condition.required && !condition.completed,
+      ).length,
+      todayStep: pickNextMission(missions),
+      completedMissions: missions.filter((mission) => mission.completed).length,
+      openMissions: missions.filter((mission) => !mission.completed).length,
+      finance,
+      forecast,
+    }
+  },
+)
+
+/** Three reads used only by the migration-plan page. */
+export const getJourneyDashboard = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const repository = coreRepository()
+    const [settings, conditions, roadmap] = await Promise.all([
+      repository.getSettings(),
+      repository.listConditions(),
+      repository.listRoadmap(),
+    ])
+
+    return {
+      settings,
+      conditions,
+      roadmap,
+      readiness: calculateReadiness(conditions),
+      readyStatus: calculateReadyStatus(conditions),
+    }
+  },
+)
+
+/** One read used only by the action page. */
+export const getMissionsDashboard = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const missions = await coreRepository().listMissions()
+    return {
+      missions,
+      todayStep: pickNextMission(missions),
+      completedMissions: missions.filter((mission) => mission.completed).length,
+      openMissions: missions.filter((mission) => !mission.completed).length,
+    }
+  },
+)
+
+/** Two reads used only by the savings page. */
+export const getFinanceDashboard = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const repository = coreRepository()
+    const [finance, savings] = await Promise.all([
+      repository.getFinanceSettings(),
+      repository.listRecentSavings(),
+    ])
+    const averageMonthlySaving = averageRecentMonthlySaving(savings)
+
+    return {
+      finance,
+      savings,
+      averageMonthlySaving: averageMonthlySaving ?? 0,
+      forecast: finance
+        ? calculateSavingForecast({
+            currentSavings: finance.currentSavings,
+            targetSavings: finance.targetSavings,
+            averageMonthlySaving,
+            fallbackMonthlySaving: finance.monthlySavingTarget,
+          })
+        : null,
+    }
+  },
+)
+
+/* FEATURE_ARCHIVE_BEGIN: full cross-feature dashboard loader
+ *
+ * This is the pre-simplification implementation. It is intentionally kept as
+ * commented source so the removed dashboards can be restored without relying
+ * on Git history. See README.md, "無効化した機能と復活方法".
+ *
+import { createServerFn } from '@tanstack/react-start'
+
+import {
   calculateFreedomScore,
   calculateLifeSimulation,
   calculateRunwayMonths,
@@ -333,3 +479,4 @@ export const getDashboard = createServerFn({ method: 'GET' }).handler(
     }
   },
 )
+FEATURE_ARCHIVE_END */

@@ -1,3 +1,14 @@
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
+// Disabled because Mission is now the single action system. The original
+// localStorage Todo implementation is archived below.
+export const Route = createFileRoute('/todos')({
+  beforeLoad: () => {
+    throw redirect({ to: '/' })
+  },
+})
+
+/* FEATURE_ARCHIVE_BEGIN: original /todos implementation
 import { createFileRoute } from '@tanstack/react-router'
 
 import { TodoList } from '#/components/todos/TodoList'
@@ -20,3 +31,4 @@ function TodosPage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

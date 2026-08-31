@@ -1,4 +1,358 @@
 import { useServerFn } from '@tanstack/react-start'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { CalendarDays, Heart, ImagePlus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Field,
+  LoadingPage,
+  Page,
+  Stat,
+  SubmitButton,
+} from '#/components/ui/Primitives'
+import { useToast } from '#/components/ui/Toast'
+import {
+  createMemory,
+  createPhoto,
+  createVisitLean,
+  deleteMemory,
+  deletePhoto,
+  deleteVisit,
+  getMemoriesCore,
+  setFavoritePhoto,
+} from '#/server/content.functions'
+
+export const Route = createFileRoute('/memories')({
+  loader: () => getMemoriesCore(),
+  component: LeanMemoriesPage,
+  pendingComponent: LoadingPage,
+})
+
+function LeanMemoriesPage() {
+  const data = Route.useLoaderData()
+  const router = useRouter()
+  const { notify } = useToast()
+  const addVisit = useServerFn(createVisitLean)
+  const removeVisit = useServerFn(deleteVisit)
+  const addMemory = useServerFn(createMemory)
+  const removeMemory = useServerFn(deleteMemory)
+  const uploadPhoto = useServerFn(createPhoto)
+  const removePhoto = useServerFn(deletePhoto)
+  const favoritePhoto = useServerFn(setFavoritePhoto)
+  const [pending, setPending] = useState(false)
+
+  async function run(
+    action: () => Promise<unknown>,
+    message: string,
+    form?: HTMLFormElement,
+  ) {
+    setPending(true)
+    try {
+      await action()
+      form?.reset()
+      notify(message)
+      await router.invalidate({ sync: true })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '処理に失敗しました',
+        'error',
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const totalDays = data.visits.reduce((sum, visit) => {
+    const start = new Date(`${visit.startDate}T00:00:00`).getTime()
+    const end = new Date(`${visit.endDate}T00:00:00`).getTime()
+    return sum + Math.max(Math.round((end - start) / 86_400_000) + 1, 1)
+  }, 0)
+
+  return (
+    <Page
+      title="思い出"
+      eyebrow="直島の記録"
+      description="訪問、写真、短い思い出だけを残します。"
+    >
+      <section className="stats-grid page-stats">
+        <Stat label="訪問" value={`${data.visits.length}回`} tone="sea" />
+        <Stat label="滞在" value={`${totalDays}日`} tone="green" />
+        <Stat label="写真" value={`${data.photos.length}枚`} tone="gold" />
+        <Stat label="思い出" value={`${data.memories.length}件`} tone="coral" />
+      </section>
+
+      <section className="content-grid">
+        <Card title="訪問記録" eyebrow="直島滞在">
+          <form
+            className="stack-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const form = event.currentTarget
+              const values = new FormData(form)
+              void run(
+                () =>
+                  addVisit({
+                    data: {
+                      title: String(values.get('title')),
+                      startDate: String(values.get('startDate')),
+                      endDate: String(values.get('endDate')),
+                      description:
+                        String(values.get('description') || '') || null,
+                      rating: values.get('rating')
+                        ? Number(values.get('rating'))
+                        : null,
+                      places: String(values.get('places') || '')
+                        .split(',')
+                        .map((place) => place.trim())
+                        .filter(Boolean),
+                    },
+                  }),
+                '訪問を記録しました',
+                form,
+              )
+            }}
+          >
+            <Field label="タイトル">
+              <input name="title" placeholder="例: 2026年 夏" required />
+            </Field>
+            <Field label="開始日">
+              <input name="startDate" type="date" required />
+            </Field>
+            <Field label="終了日">
+              <input name="endDate" type="date" required />
+            </Field>
+            <Field label="満足度 1〜5">
+              <input name="rating" type="number" min="1" max="5" />
+            </Field>
+            <Field label="場所（カンマ区切り）">
+              <input name="places" placeholder="宮浦港, 本村" />
+            </Field>
+            <Field label="感想">
+              <textarea name="description" />
+            </Field>
+            <SubmitButton pending={pending}>訪問を追加</SubmitButton>
+          </form>
+
+          {data.visits.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="visit-list">
+              {data.visits.map((visit) => (
+                <article key={visit.id}>
+                  <CalendarDays />
+                  <div>
+                    <h3>{visit.title}</h3>
+                    <p>
+                      {visit.startDate} → {visit.endDate}
+                    </p>
+                    <span>{visit.description}</span>
+                  </div>
+                  <Badge tone="gold">
+                    {visit.rating ? '★'.repeat(visit.rating) : '未評価'}
+                  </Badge>
+                  <button
+                    className="icon-button danger"
+                    onClick={() =>
+                      window.confirm('訪問記録を削除しますか？') &&
+                      void run(
+                        () => removeVisit({ data: { id: visit.id } }),
+                        '訪問を削除しました',
+                      )
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card title="短い思い出" eyebrow="記録">
+          <form
+            className="stack-form"
+            onSubmit={(event) => {
+              event.preventDefault()
+              const form = event.currentTarget
+              const values = new FormData(form)
+              void run(
+                () =>
+                  addMemory({
+                    data: {
+                      title: String(values.get('title')),
+                      description:
+                        String(values.get('description') || '') || null,
+                      date: String(values.get('date')),
+                      latitude: null,
+                      longitude: null,
+                      photoId: String(values.get('photoId') || '') || null,
+                      visitId: String(values.get('visitId') || '') || null,
+                    },
+                  }),
+                '思い出を保存しました',
+                form,
+              )
+            }}
+          >
+            <Field label="タイトル">
+              <input name="title" required />
+            </Field>
+            <Field label="日付">
+              <input
+                name="date"
+                type="date"
+                defaultValue={new Date().toISOString().slice(0, 10)}
+                required
+              />
+            </Field>
+            <Field label="訪問">
+              <select name="visitId">
+                <option value="">なし</option>
+                {data.visits.map((visit) => (
+                  <option key={visit.id} value={visit.id}>
+                    {visit.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="写真">
+              <select name="photoId">
+                <option value="">なし</option>
+                {data.photos.map((photo) => (
+                  <option key={photo.id} value={photo.id}>
+                    {photo.caption ?? photo.takenAt ?? photo.id}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="内容">
+              <textarea name="description" />
+            </Field>
+            <SubmitButton pending={pending}>思い出を追加</SubmitButton>
+          </form>
+
+          <div className="item-list">
+            {data.memories.map((memory) => (
+              <article className="list-row" key={memory.id}>
+                <div>
+                  <strong>{memory.title}</strong>
+                  <p>
+                    {memory.date} · {memory.description ?? ''}
+                  </p>
+                </div>
+                <button
+                  className="icon-button danger"
+                  onClick={() =>
+                    window.confirm('思い出を削除しますか？') &&
+                    void run(
+                      () => removeMemory({ data: { id: memory.id } }),
+                      '思い出を削除しました',
+                    )
+                  }
+                >
+                  <Trash2 size={14} />
+                </button>
+              </article>
+            ))}
+          </div>
+        </Card>
+      </section>
+
+      <Card title="写真" eyebrow="R2アルバム">
+        <form
+          className="stack-form"
+          encType="multipart/form-data"
+          onSubmit={(event) => {
+            event.preventDefault()
+            const form = event.currentTarget
+            void run(
+              () => uploadPhoto({ data: new FormData(form) }),
+              '写真を保存しました',
+              form,
+            )
+          }}
+        >
+          <Field label="写真（10MB以下）">
+            <input name="file" type="file" accept="image/*" required />
+          </Field>
+          <Field label="撮影日">
+            <input name="takenAt" type="date" />
+          </Field>
+          <Field label="キャプション">
+            <input name="caption" />
+          </Field>
+          <SubmitButton pending={pending}>
+            <ImagePlus size={16} /> 写真をアップロード
+          </SubmitButton>
+        </form>
+
+        {data.photos.length === 0 ? (
+          <EmptyState title="写真はまだありません" />
+        ) : (
+          <div className="photo-grid">
+            {data.photos.map((photo) => (
+              <figure key={photo.id}>
+                <img
+                  src={photo.imageUrl}
+                  alt={photo.caption ?? '直島の写真'}
+                  loading="lazy"
+                />
+                <figcaption>
+                  <div>
+                    <strong>{photo.caption ?? 'Untitled'}</strong>
+                    <small>{photo.takenAt ?? ''}</small>
+                  </div>
+                  <button
+                    className={`icon-button ${photo.favorite ? 'favorite' : ''}`}
+                    aria-label="お気に入り"
+                    onClick={() =>
+                      void run(
+                        () =>
+                          favoritePhoto({
+                            data: { id: photo.id, favorite: !photo.favorite },
+                          }),
+                        photo.favorite
+                          ? 'お気に入りを解除しました'
+                          : 'お気に入りにしました',
+                      )
+                    }
+                  >
+                    <Heart
+                      size={15}
+                      fill={photo.favorite ? 'currentColor' : 'none'}
+                    />
+                  </button>
+                  <button
+                    className="icon-button danger"
+                    onClick={() =>
+                      window.confirm('写真を削除しますか？') &&
+                      void run(
+                        () => removePhoto({ data: { id: photo.id } }),
+                        '写真を削除しました',
+                      )
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
+      </Card>
+    </Page>
+  )
+}
+
+/* FEATURE_ARCHIVE_BEGIN: original memories hub
+ *
+ * Restore this block for maps/favorite places, audio, next-visit planning,
+ * albums, collection/season/calendar, bingo, quests, and photo comparisons.
+ *
+import { useServerFn } from '@tanstack/react-start'
 import { ClientOnly, createFileRoute, useRouter } from '@tanstack/react-router'
 import { differenceInCalendarDays } from 'date-fns'
 import {
@@ -940,3 +1294,4 @@ function MemoriesPage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

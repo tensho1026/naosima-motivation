@@ -1,5 +1,153 @@
 import { useServerFn } from '@tanstack/react-start'
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
+import { ArrowRight, CheckCircle2 } from 'lucide-react'
+
+import {
+  Card,
+  LoadingPage,
+  Page,
+  ProgressBar,
+  Stat,
+} from '#/components/ui/Primitives'
+import { useToast } from '#/components/ui/Toast'
+import { completeMissionLean } from '#/server/core.functions'
+import { getHomeDashboard } from '#/server/dashboard.functions'
+import { readyStatusLabel } from '#/utils/display'
+
+export const Route = createFileRoute('/')({
+  loader: () => getHomeDashboard(),
+  component: LeanDashboardPage,
+  pendingComponent: LoadingPage,
+})
+
+const yen = (value: number) => `${Math.round(value).toLocaleString('ja-JP')}円`
+
+function LeanDashboardPage() {
+  const data = Route.useLoaderData()
+  const router = useRouter()
+  const finish = useServerFn(completeMissionLean)
+  const { notify } = useToast()
+
+  if (!data.settings) {
+    return (
+      <Page title="ホーム" eyebrow="直島移住への旅">
+        <Card title="最初に移住計画を設定しましょう">
+          <p>目標日を設定すると、今日の行動と準備状況を確認できます。</p>
+          <Link to="/settings" className="button primary">
+            設定を始める <ArrowRight size={14} />
+          </Link>
+        </Card>
+      </Page>
+    )
+  }
+
+  async function finishTodayStep() {
+    if (!data.todayStep) return
+    try {
+      await finish({ data: { id: data.todayStep.id } })
+      notify(`「${data.todayStep.title}」を完了しました`)
+      await router.invalidate({ sync: true })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '完了に失敗しました',
+        'error',
+      )
+    }
+  }
+
+  const savings = data.finance?.currentSavings ?? 0
+  const savingsTarget = data.finance?.targetSavings ?? 0
+  const savingsPercent = savingsTarget > 0 ? (savings / savingsTarget) * 100 : 0
+
+  return (
+    <Page
+      title="ホーム"
+      eyebrow="今日の一歩"
+      description="今日やること、移住条件、資金の3点だけを確認します。"
+    >
+      <section className="stats-grid page-stats">
+        <Stat
+          label="移住目標日まで"
+          value={`${data.countdown.days.toLocaleString('ja-JP')}日`}
+          detail={data.settings.migrationTargetDate ?? '目標日未設定'}
+          tone="sea"
+        />
+        <Stat
+          label="移住準備度"
+          value={`${Math.round(data.readiness.overall)}%`}
+          detail={readyStatusLabel(data.readyStatus)}
+          tone="green"
+        />
+        <Stat
+          label="移住資金"
+          value={yen(savings)}
+          detail={
+            savingsTarget > 0 ? `目標 ${yen(savingsTarget)}` : '目標未設定'
+          }
+          tone="gold"
+        />
+        <Stat
+          label="未完了の行動"
+          value={`${data.openMissions}件`}
+          detail={`完了 ${data.completedMissions}件`}
+          tone="coral"
+        />
+      </section>
+
+      <section className="content-grid">
+        <Card title="今日の行動" eyebrow="次にやること">
+          {data.todayStep ? (
+            <div className="today-step">
+              <div>
+                <strong>{data.todayStep.title}</strong>
+                <p>{data.todayStep.description ?? 'この一歩を完了させる'}</p>
+              </div>
+              <button className="button primary" onClick={finishTodayStep}>
+                <CheckCircle2 size={16} />
+                完了
+              </button>
+            </div>
+          ) : (
+            <p>未完了の行動はありません。</p>
+          )}
+          <Link to="/missions" className="button ghost">
+            行動を管理する <ArrowRight size={14} />
+          </Link>
+        </Card>
+
+        <Card title="残っている準備" eyebrow="移住条件">
+          <strong className="metric-large">
+            あと {data.conditionsRemaining} 条件
+          </strong>
+          <p>必須条件の達成状況から準備度を算出しています。</p>
+          <Link to="/journey" className="button ghost">
+            移住計画を見る <ArrowRight size={14} />
+          </Link>
+        </Card>
+      </section>
+
+      <Card title="資金ペース" eyebrow="貯金">
+        <ProgressBar
+          value={savingsPercent}
+          label={`${yen(savings)} / ${yen(savingsTarget)}`}
+        />
+        <p>達成予測: {data.forecast?.projectedDate ?? '予測待ち'}</p>
+        <Link to="/finance" className="button ghost">
+          資金を更新する <ArrowRight size={14} />
+        </Link>
+      </Card>
+    </Page>
+  )
+}
+
+/* FEATURE_ARCHIVE_BEGIN: original feature-rich home dashboard
+ *
+ * Remove the lean implementation above and these markers to restore charts,
+ * XP, virtual journey, streaks, heatmaps, random memories, geolocation,
+ * achievements, Career metrics, and What-if simulations.
+ *
+import { useServerFn } from '@tanstack/react-start'
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import {
   ArrowRight,
   CalendarClock,
@@ -672,3 +820,4 @@ function DashboardPage() {
     </main>
   )
 }
+FEATURE_ARCHIVE_END */
