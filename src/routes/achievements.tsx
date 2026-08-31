@@ -1,3 +1,14 @@
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
+// Disabled in the lean feature set. The original implementation is archived
+// below and can be restored with the README instructions.
+export const Route = createFileRoute('/achievements')({
+  beforeLoad: () => {
+    throw redirect({ to: '/' })
+  },
+})
+
+/* FEATURE_ARCHIVE_BEGIN: original /achievements implementation
 import { useServerFn } from '@tanstack/react-start'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { Award, LockKeyhole, Medal, Sparkles, Trophy } from 'lucide-react'
@@ -166,3 +177,4 @@ function AchievementsPage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

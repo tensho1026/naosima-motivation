@@ -1,5 +1,272 @@
 import { useServerFn } from '@tanstack/react-start'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { Check, RotateCcw, Star, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Field,
+  LoadingPage,
+  Page,
+  Stat,
+  SubmitButton,
+} from '#/components/ui/Primitives'
+import { useToast } from '#/components/ui/Toast'
+import {
+  completeMissionLean,
+  createMission,
+  deleteMission,
+  uncompleteMissionLean,
+} from '#/server/core.functions'
+import { getMissionsDashboard } from '#/server/dashboard.functions'
+import { categoryLabel } from '#/utils/display'
+
+export const Route = createFileRoute('/missions')({
+  loader: () => getMissionsDashboard(),
+  component: LeanMissionsPage,
+  pendingComponent: LoadingPage,
+})
+
+const leanMissionCategories = [
+  'MONEY',
+  'WORK',
+  'SKILL',
+  'LIFESTYLE',
+  'NAOSHIMA',
+  'CONNECTION',
+] as const
+const leanMissionTypes = ['DAILY', 'MONTHLY', 'YEARLY'] as const
+
+function LeanMissionsPage() {
+  const data = Route.useLoaderData()
+  const router = useRouter()
+  const { notify } = useToast()
+  const add = useServerFn(createMission)
+  const finish = useServerFn(completeMissionLean)
+  const undo = useServerFn(uncompleteMissionLean)
+  const remove = useServerFn(deleteMission)
+  const [tab, setTab] = useState<(typeof leanMissionTypes)[number]>('DAILY')
+  const [pending, setPending] = useState(false)
+
+  async function run(action: () => Promise<unknown>, message: string) {
+    setPending(true)
+    try {
+      await action()
+      notify(message)
+      await router.invalidate({ sync: true })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '処理に失敗しました',
+        'error',
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const visibleMissions = data.missions.filter(
+    (mission) => mission.type === tab,
+  )
+
+  return (
+    <Page
+      title="行動"
+      eyebrow="今日やること"
+      description="Todoを統合し、行動の登録と完了だけに絞りました。"
+    >
+      <section className="stats-grid page-stats">
+        <Stat label="未完了" value={`${data.openMissions}件`} tone="sea" />
+        <Stat label="完了" value={`${data.completedMissions}件`} tone="green" />
+        <Stat
+          label="次の行動"
+          value={data.todayStep?.title ?? '未設定'}
+          tone="gold"
+        />
+      </section>
+
+      <section className="content-grid mission-layout">
+        <Card title="行動を追加" eyebrow="新しい一歩">
+          <form
+            className="stack-form"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const form = event.currentTarget
+              const values = new FormData(form)
+              const type = String(
+                values.get('type'),
+              ) as (typeof leanMissionTypes)[number]
+              await run(
+                () =>
+                  add({
+                    data: {
+                      title: String(values.get('title')),
+                      description:
+                        String(values.get('description') || '') || null,
+                      type,
+                      category: String(
+                        values.get('category'),
+                      ) as (typeof leanMissionCategories)[number],
+                      xp: 0,
+                      impactScore: 1,
+                      estimatedMinutes: Number(values.get('estimatedMinutes')),
+                      minimumTitle: null,
+                      minimumMinutes: null,
+                      weeklyPriority: values.get('weeklyPriority') === 'on',
+                      skillId: null,
+                      scheduledDate:
+                        type === 'DAILY'
+                          ? String(values.get('scheduledDate'))
+                          : null,
+                      month:
+                        type === 'MONTHLY' ? new Date().getMonth() + 1 : null,
+                      year: type === 'YEARLY' ? new Date().getFullYear() : null,
+                    },
+                  }),
+                '行動を追加しました',
+              )
+              form.reset()
+            }}
+          >
+            <Field label="行動名">
+              <input name="title" required maxLength={120} />
+            </Field>
+            <Field label="種類">
+              <select name="type" defaultValue="DAILY">
+                {leanMissionTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type === 'DAILY'
+                      ? '今日・日付'
+                      : type === 'MONTHLY'
+                        ? '今月'
+                        : '今年'}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="カテゴリ">
+              <select name="category">
+                {leanMissionCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {categoryLabel(category)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="予定日">
+              <input
+                name="scheduledDate"
+                type="date"
+                defaultValue={new Date().toISOString().slice(0, 10)}
+              />
+            </Field>
+            <Field label="所要時間（分）">
+              <input
+                name="estimatedMinutes"
+                type="number"
+                min="1"
+                max="1440"
+                defaultValue="30"
+                required
+              />
+            </Field>
+            <Field label="説明">
+              <textarea name="description" />
+            </Field>
+            <label className="check-field">
+              <input name="weeklyPriority" type="checkbox" />
+              最優先にする
+            </label>
+            <SubmitButton pending={pending}>行動を追加</SubmitButton>
+          </form>
+        </Card>
+
+        <Card title="行動一覧" eyebrow="日・月・年">
+          <div className="tabs">
+            {leanMissionTypes.map((type) => (
+              <button
+                key={type}
+                className={tab === type ? 'active' : ''}
+                onClick={() => setTab(type)}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+          {visibleMissions.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="mission-list">
+              {visibleMissions.map((mission) => (
+                <article
+                  key={mission.id}
+                  className={`mission-row ${mission.completed ? 'completed' : ''}`}
+                >
+                  <button
+                    className="mission-check"
+                    onClick={() =>
+                      run(
+                        () =>
+                          mission.completed
+                            ? undo({ data: { id: mission.id } })
+                            : finish({ data: { id: mission.id } }),
+                        mission.completed
+                          ? '未完了に戻しました'
+                          : '行動を完了しました',
+                      )
+                    }
+                  >
+                    {mission.completed ? (
+                      <RotateCcw size={15} />
+                    ) : (
+                      <Check size={15} />
+                    )}
+                  </button>
+                  <div className="mission-copy">
+                    <div>
+                      <Badge>{categoryLabel(mission.category)}</Badge>
+                      {mission.weeklyPriority ? (
+                        <Badge tone="gold">
+                          <Star size={11} /> 最優先
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <h3>{mission.title}</h3>
+                    <p>
+                      {mission.scheduledDate ?? '日付なし'} ·{' '}
+                      {mission.estimatedMinutes}分
+                    </p>
+                  </div>
+                  <button
+                    className="icon-button danger"
+                    onClick={() =>
+                      window.confirm('行動を削除しますか？') &&
+                      run(
+                        () => remove({ data: { id: mission.id } }),
+                        '行動を削除しました',
+                      )
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </Card>
+      </section>
+    </Page>
+  )
+}
+
+/* FEATURE_ARCHIVE_BEGIN: original gamified Mission dashboard
+ *
+ * Restore this block for XP, impact score, minimum mission, Skill links,
+ * No Zero Week, streaks, and the annual activity heatmap.
+ *
+import { useServerFn } from '@tanstack/react-start'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { Check, RotateCcw, Star, Trash2, Zap } from 'lucide-react'
 import { useState } from 'react'
 
@@ -351,3 +618,4 @@ function MissionsPage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

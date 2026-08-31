@@ -197,6 +197,50 @@ export class CoreRepository {
     return this.db.delete(missions).where(eq(missions.id, id)).returning().get()
   }
 
+  /**
+   * Lean mission completion used while XP, Skill XP, and achievements are
+   * disabled. The original completeMission/uncompleteMission methods remain
+   * below for one-step restoration of the gamification bundle.
+   */
+  async setMissionCompleted(id: string, completed: boolean) {
+    const mission = await this.db
+      .select()
+      .from(missions)
+      .where(eq(missions.id, id))
+      .get()
+    if (!mission) throw new Error('Mission not found')
+    if (mission.completed === completed) return mission
+
+    const now = new Date()
+    await this.db.batch([
+      this.db
+        .update(missions)
+        .set({
+          completed,
+          completedAt: completed ? now : null,
+          updatedAt: now,
+        })
+        .where(eq(missions.id, id)),
+      this.db.insert(actionLogs).values({
+        type: completed ? 'MISSION_COMPLETED' : 'MISSION_UNCOMPLETED',
+        title: mission.title,
+        description: completed ? '行動を完了' : '行動を未完了へ戻した',
+        category: mission.category,
+        sourceId: mission.id,
+        occurredAt: now,
+      }),
+    ])
+
+    return {
+      ...mission,
+      completed,
+      completedAt: completed ? now : null,
+      updatedAt: now,
+    }
+  }
+
+  // FEATURE_ARCHIVE: XP・Skill XP・称号を復活するときは、この旧メソッドを
+  // core.functions.ts の Mission mutations から再び呼び出します。
   async completeMission(id: string) {
     const mission = await this.db
       .select()
@@ -448,6 +492,17 @@ export class CoreRepository {
       .select()
       .from(savingTransactions)
       .orderBy(desc(savingTransactions.date))
+      .all()
+  }
+
+  // Bounded read for the lean home/finance loaders. listSavings() remains for
+  // the archived charts and full-history restoration path.
+  listRecentSavings(limit = 100) {
+    return this.db
+      .select()
+      .from(savingTransactions)
+      .orderBy(desc(savingTransactions.date))
+      .limit(limit)
       .all()
   }
 

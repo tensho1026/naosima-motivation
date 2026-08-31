@@ -1,17 +1,18 @@
 import { Link } from '@tanstack/react-router'
 import {
   Banknote,
-  BriefcaseBusiness,
   CalendarCheck2,
   CircleUserRound,
   Compass,
-  Flag,
   Heart,
   Images,
   LayoutDashboard,
-  ListTodo,
-  Sparkles,
-  Trophy,
+  // FEATURE_ARCHIVE: uncomment these icons with the archived nav entries below.
+  // BriefcaseBusiness,
+  // Flag,
+  // ListTodo,
+  // Sparkles,
+  // Trophy,
 } from 'lucide-react'
 
 import ThemeToggle from './ThemeToggle'
@@ -20,23 +21,27 @@ const navItems = [
   { to: '/', label: 'ホーム', icon: LayoutDashboard },
   { to: '/journey', label: '移住計画', icon: Compass },
   { to: '/missions', label: '行動', icon: CalendarCheck2 },
-  { to: '/todos', label: 'Todo', icon: ListTodo },
   { to: '/finance', label: '資金', icon: Banknote },
-  { to: '/career', label: '仕事', icon: BriefcaseBusiness },
-  { to: '/skills', label: 'スキル', icon: Sparkles },
-  { to: '/future', label: '未来', icon: Flag },
   { to: '/memories', label: '思い出', icon: Images },
-  { to: '/achievements', label: '称号', icon: Trophy },
   { to: '/reviews', label: '振り返り', icon: Heart },
   { to: '/settings', label: '設定', icon: CircleUserRound },
+  // FEATURE_ARCHIVE_BEGIN: removed top-level features. Uncomment together
+  // with the corresponding icon imports and route implementation.
+  // { to: '/todos', label: 'Todo', icon: ListTodo },
+  // { to: '/career', label: '仕事', icon: BriefcaseBusiness },
+  // { to: '/skills', label: 'スキル', icon: Sparkles },
+  // { to: '/future', label: '未来', icon: Flag },
+  // { to: '/achievements', label: '称号', icon: Trophy },
+  // FEATURE_ARCHIVE_END
 ] as const
 
 const mobileNavItems = [
   { to: '/', label: 'ホーム', icon: LayoutDashboard },
   { to: '/journey', label: '移住計画', icon: Compass },
   { to: '/missions', label: '行動', icon: CalendarCheck2 },
-  { to: '/todos', label: 'Todo', icon: ListTodo },
+  { to: '/finance', label: '資金', icon: Banknote },
   { to: '/settings', label: 'その他', icon: CircleUserRound },
+  // FEATURE_ARCHIVE: { to: '/todos', label: 'Todo', icon: ListTodo },
 ] as const
 
 export default function Header() {

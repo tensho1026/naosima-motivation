@@ -1,4 +1,109 @@
 import { useServerFn } from '@tanstack/react-start'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { useState } from 'react'
+
+import {
+  Card,
+  Field,
+  LoadingPage,
+  Page,
+  SubmitButton,
+} from '#/components/ui/Primitives'
+import { useToast } from '#/components/ui/Toast'
+import { getSettings, updateSettingsLean } from '#/server/core.functions'
+
+export const Route = createFileRoute('/settings')({
+  loader: () => getSettings(),
+  component: LeanSettingsPage,
+  pendingComponent: LoadingPage,
+})
+
+function LeanSettingsPage() {
+  const settings = Route.useLoaderData()
+  const router = useRouter()
+  const { notify } = useToast()
+  const save = useServerFn(updateSettingsLean)
+  const [pending, setPending] = useState(false)
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const values = new FormData(event.currentTarget)
+    setPending(true)
+    try {
+      await save({
+        data: {
+          migrationTargetDate: String(values.get('migrationTargetDate')),
+          journeyStartedAt: String(values.get('journeyStartedAt')),
+          birthDate: String(values.get('birthDate') || '') || null,
+          virtualJourneyDistance: Number(values.get('virtualJourneyDistance')),
+        },
+      })
+      notify('設定を更新しました')
+      await router.invalidate({ sync: true })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '保存に失敗しました',
+        'error',
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <Page
+      title="設定"
+      eyebrow="移住計画"
+      description="日付と基本値だけを設定します。"
+    >
+      <Card title="基本設定" eyebrow="直島までの計画">
+        <form className="settings-form" onSubmit={submit}>
+          <Field label="移住目標日">
+            <input
+              name="migrationTargetDate"
+              type="date"
+              defaultValue={settings?.migrationTargetDate ?? ''}
+              required
+            />
+          </Field>
+          <Field label="準備を始めた日">
+            <input
+              name="journeyStartedAt"
+              type="date"
+              defaultValue={settings?.journeyStartedAt ?? ''}
+              required
+            />
+          </Field>
+          <Field label="生年月日（任意）">
+            <input
+              name="birthDate"
+              type="date"
+              defaultValue={settings?.birthDate ?? ''}
+            />
+          </Field>
+          <Field label="仮想移動距離（互換性のため保持）">
+            <input
+              name="virtualJourneyDistance"
+              type="number"
+              min="100"
+              max="100000"
+              defaultValue={settings?.virtualJourneyDistance ?? 1000}
+              required
+            />
+          </Field>
+          <SubmitButton pending={pending}>設定を保存</SubmitButton>
+        </form>
+      </Card>
+    </Page>
+  )
+}
+
+/* FEATURE_ARCHIVE_BEGIN: original settings hub
+ *
+ * Restore this block for Cloudflare storage status, full JSON export, and the
+ * standalone PWA countdown widget link.
+ *
+import { useServerFn } from '@tanstack/react-start'
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { Cloud, Download, MonitorSmartphone, ShieldCheck } from 'lucide-react'
 import { useState } from 'react'
@@ -153,3 +258,4 @@ function SettingsPage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

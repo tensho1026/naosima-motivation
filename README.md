@@ -1,6 +1,6 @@
 # Naoshima Bound
 
-直島への移住を実現するまでの「今日の行動 → 成長 → 移住条件の達成 → 直島に近づく」を一本につなぐ、個人用フルスタックWebアプリです。TODOを消化するだけでなく、Mission、Life XP、スキル、移住資金、働き方、未来設計、訪問と思い出を同じダッシュボードで可視化します。
+直島への移住を実現するまでの「今日の行動 → 移住条件の達成 → 資金の準備 → 月次振り返り」を一本につなぐ、個人用フルスタックWebアプリです。機能を絞ったLean版では、毎日使う操作だけを表示します。
 
 初期版は1ユーザー・認証なしです。AI、物件／求人検索、SNS、他ユーザーランキング、通知、課金、広告は含みません。
 
@@ -10,6 +10,16 @@
 
 ## 主な機能
 
+- ホーム: 移住日カウントダウン、準備度、資金、今日の行動
+- 行動: Daily／Monthly／Yearly Missionの登録と完了
+- 移住計画: 移住条件とロードマップ
+- 資金: 現在額・目標額・入出金履歴・達成予測
+- 思い出: 訪問記録、R2写真、短い思い出
+- 振り返り: 月次Review、準備度・資金・完了行動のSnapshot
+- 設定: 移住目標日などの基本値
+- PWA manifestとService Worker
+
+<!-- FEATURE_ARCHIVE_BEGIN: 旧フル機能一覧
 - 移住日カウントダウン、移住準備度、Ready判定、仮想1,000km Journey、Life XP
 - Daily／Monthly／Yearly Mission、Impact Score、今週の最優先、Minimum Mission、No Zero Week
 - 移住条件とロードマップ、逆算カレンダー、レーダー、Milestone、Season／Focus Goal
@@ -18,7 +28,52 @@
 - 理想の一日／一週間、Future Diary、100 Dreams、未来プロフィール、手紙、タイムカプセル
 - 訪問・場所・思い出マップ、R2写真／音声、アルバム、図鑑、季節、Bingo、Quest、写真比較
 - Action History、Achievement自動解除、月次Review、Before／After、Score History、Journey Replay
-- PWA manifest、Service Worker、ホーム／ロック画面向けWidget
+- ホーム／ロック画面向けWidget
+FEATURE_ARCHIVE_END -->
+
+## 無効化した機能と復活方法
+
+Lean版では以下を画面・ナビゲーション・通常のデータ取得経路から外しています。コード、DBテーブル、既存データは削除していません。
+
+| 分類                 | 無効化した機能                                                                                         | 保存場所                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| 独立画面             | Todo、仕事、スキル、未来、称号、PWAカウントダウンWidget                                                | `src/routes/todos.tsx`、`career.tsx`、`skills.tsx`、`future.tsx`、`achievements.tsx`、`widget.tsx` |
+| ゲーミフィケーション | Life XP、Skill XP、仮想Journey、称号、連続行動、No Zero Week、ヒートマップ、Impact、Minimum Mission    | `src/routes/index.tsx`、`missions.tsx`、`src/server/core-repository.server.ts`                     |
+| 移住計画             | 節目タイムライン、原点、季節目標、集中モード、記念日、決断・捨てる目標、時間・金額投資ログ             | `src/routes/journey.tsx`                                                                           |
+| 資金                 | グラフ、生活シミュレーター、移住シナリオ比較、固定費削減、自由資金・1日コスト、移住日スライダー        | `src/routes/finance.tsx`                                                                           |
+| 思い出               | 地図・お気に入り地点、音声、次回訪問計画、複数アルバム、図鑑、季節、カレンダー、Bingo、Quest、写真比較 | `src/routes/memories.tsx`                                                                          |
+| 振り返り             | XP集計、グラフ、Journey Replay、移住日記、気持ちログ、移住理由履歴、迷ったときカード                   | `src/routes/reviews.tsx`                                                                           |
+| 設定                 | Cloudflare接続表示、全データJSON出力、Widgetリンク                                                     | `src/routes/settings.tsx`                                                                          |
+| サーバー集約         | 全機能を一括取得する旧`getDashboard`                                                                   | `src/server/dashboard.functions.ts`                                                                |
+
+無効化したソースは各ファイルの `FEATURE_ARCHIVE_BEGIN` と `FEATURE_ARCHIVE_END` の間にコメントとして保存しています。独立画面は先頭のリダイレクトだけが有効です。
+
+復活手順:
+
+1. 対象ルートの先頭にあるLean実装またはリダイレクトをコメントアウトする。
+2. 同ファイルの `FEATURE_ARCHIVE_BEGIN/END` マーカーを外し、保存された旧実装を有効にする。
+3. `src/components/Header.tsx` の同名ナビゲーションとアイコンimportをコメント解除する。
+4. 旧ダッシュボードが必要な場合は、`src/server/dashboard.functions.ts` のLeanローダー群をコメントアウトし、保存された旧`getDashboard`ブロックを有効にする。
+5. XP・Skill XP・称号も戻す場合は、Mission画面を旧実装へ戻す。旧画面は`completeMission`／`uncompleteMission`を使うため、旧処理へ自動的に戻る。
+6. `pnpm generate-routes && pnpm check`を実行する。
+
+Lean版の利用中はMission完了でXP・Skill XP・称号を更新しません。また、Lean版で作る月次Snapshotの`totalXp`は`0`、`skillLevels`は空になります。既存のXP・Skill・称号・未来・音声・各種ログ・R2オブジェクトは変更も削除もしません。
+
+## データ取得の軽量化
+
+旧`getDashboard`は21の集約データソースに加えて、Career、称号、訪問場所、14種類の追加リソースを内部で取得していました。Lean版は画面ごとにServer Functionを分けています。
+
+| 画面     | 通常ロード時の主要取得                                   |
+| -------- | -------------------------------------------------------- |
+| ホーム   | 設定・移住条件・Mission・資金設定・直近の入出金（5系統） |
+| 移住計画 | 設定・移住条件・ロードマップ（3系統）                    |
+| 行動     | Mission（1系統）                                         |
+| 資金     | 資金設定・直近の入出金（2系統）                          |
+| 思い出   | 件数上限付きの訪問・思い出・写真（3系統）                |
+| 振り返り | 月次Review・Snapshot（2系統）                            |
+| 設定     | 基本設定（1系統）                                        |
+
+入出金は直近100件、訪問は50件、思い出は100件、写真は60件に通常表示を制限しています。全件取得メソッドは旧機能の復活用として残しています。
 
 ## Technology
 

@@ -42,6 +42,12 @@ export const updateSettings = createServerFn({ method: 'POST' })
     return result
   })
 
+// Lean mutation used by the simplified settings page. The archived full
+// dashboard can switch back to updateSettings to restore achievement checks.
+export const updateSettingsLean = createServerFn({ method: 'POST' })
+  .validator(settingsSchema)
+  .handler(({ data }) => coreRepository().saveSettings(data))
+
 export const getConditions = createServerFn({ method: 'GET' }).handler(() =>
   coreRepository().listConditions(),
 )
@@ -62,6 +68,10 @@ export const completeCondition = createServerFn({ method: 'POST' })
     await checkAndUnlockAchievements(repository)
     return condition
   })
+
+export const toggleConditionLean = createServerFn({ method: 'POST' })
+  .validator(idSchema)
+  .handler(({ data }) => coreRepository().toggleCondition(data.id))
 
 export const deleteCondition = createServerFn({ method: 'POST' })
   .validator(idSchema)
@@ -139,6 +149,16 @@ export const uncompleteMission = createServerFn({ method: 'POST' })
   .validator(idSchema)
   .handler(({ data }) => coreRepository().uncompleteMission(data.id))
 
+// FEATURE_ARCHIVE: use completeMission/uncompleteMission above to restore XP,
+// Skill XP, condition propagation, and automatic achievement checks.
+export const completeMissionLean = createServerFn({ method: 'POST' })
+  .validator(idSchema)
+  .handler(({ data }) => coreRepository().setMissionCompleted(data.id, true))
+
+export const uncompleteMissionLean = createServerFn({ method: 'POST' })
+  .validator(idSchema)
+  .handler(({ data }) => coreRepository().setMissionCompleted(data.id, false))
+
 export const getFinance = createServerFn({ method: 'GET' }).handler(
   async () => {
     const repository = coreRepository()
@@ -175,6 +195,10 @@ export const updateFinanceSettings = createServerFn({ method: 'POST' })
     return result
   })
 
+export const updateFinanceSettingsLean = createServerFn({ method: 'POST' })
+  .validator(financeSettingsSchema)
+  .handler(({ data }) => coreRepository().saveFinanceSettings(data))
+
 export const getSavingTransactions = createServerFn({ method: 'GET' }).handler(
   () => coreRepository().listSavings(),
 )
@@ -187,6 +211,10 @@ export const createSavingTransaction = createServerFn({ method: 'POST' })
     await checkAndUnlockAchievements(repository)
     return result
   })
+
+export const createSavingTransactionLean = createServerFn({ method: 'POST' })
+  .validator(savingInputSchema)
+  .handler(({ data }) => coreRepository().createSaving(data))
 
 export const deleteSavingTransaction = createServerFn({ method: 'POST' })
   .validator(idSchema)

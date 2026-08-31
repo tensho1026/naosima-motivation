@@ -1,5 +1,205 @@
 import { useServerFn } from '@tanstack/react-start'
 import { createFileRoute, useRouter } from '@tanstack/react-router'
+import { CalendarCheck } from 'lucide-react'
+import { useState } from 'react'
+
+import {
+  Card,
+  EmptyState,
+  Field,
+  LoadingPage,
+  Page,
+  Stat,
+  SubmitButton,
+} from '#/components/ui/Primitives'
+import { useToast } from '#/components/ui/Toast'
+import {
+  createMonthlyReviewLean,
+  getReviewsCore,
+  updateMonthlyReviewLean,
+} from '#/server/content.functions'
+
+export const Route = createFileRoute('/reviews')({
+  loader: () => getReviewsCore(),
+  component: LeanReviewsPage,
+  pendingComponent: LoadingPage,
+})
+
+const leanCurrentMonth = () => new Date().toISOString().slice(0, 7)
+
+function LeanReviewsPage() {
+  const data = Route.useLoaderData()
+  const router = useRouter()
+  const { notify } = useToast()
+  const [pending, setPending] = useState(false)
+  const [month, setMonth] = useState(leanCurrentMonth())
+  const createReview = useServerFn(createMonthlyReviewLean)
+  const updateReview = useServerFn(updateMonthlyReviewLean)
+  const existing = data.reviews.find((review) => review.month === month)
+  const latest = data.snapshots.at(-1)
+  const previous = data.snapshots.at(-2)
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const values = new FormData(event.currentTarget)
+    const payload = {
+      month: String(values.get('month')),
+      goodThings: String(values.get('goodThings') || ''),
+      nextMonth: String(values.get('nextMonth') || ''),
+      closerToNaoshima: String(values.get('closerToNaoshima') || ''),
+      notes: String(values.get('notes') || ''),
+    }
+    setPending(true)
+    try {
+      if (existing) {
+        await updateReview({ data: { id: existing.id, ...payload } })
+      } else {
+        await createReview({ data: payload })
+      }
+      notify('月次レビューを保存しました')
+      await router.invalidate({ sync: true })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '保存に失敗しました',
+        'error',
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
+  return (
+    <Page
+      title="振り返り"
+      eyebrow="月に一度"
+      description="月次レビューと準備度・資金・完了行動のスナップショットだけを残します。"
+    >
+      <section className="stats-grid page-stats">
+        <Stat
+          label="最新の準備度"
+          value={latest ? `${Math.round(latest.readiness)}%` : '—'}
+          tone="sea"
+        />
+        <Stat
+          label="最新の資金"
+          value={latest ? `${latest.savings.toLocaleString('ja-JP')}円` : '—'}
+          tone="green"
+        />
+        <Stat
+          label="完了した行動"
+          value={latest?.completedMissions ?? '—'}
+          tone="gold"
+        />
+        <Stat
+          label="レビュー数"
+          value={`${data.reviews.length}件`}
+          tone="coral"
+        />
+      </section>
+
+      <section className="content-grid">
+        <Card title="月次レビュー" eyebrow="今月の振り返り">
+          <form
+            className="review-form"
+            onSubmit={submit}
+            key={`${month}-${existing?.id ?? 'new'}`}
+          >
+            <Field label="対象月">
+              <input
+                name="month"
+                type="month"
+                value={month}
+                onChange={(event) => setMonth(event.target.value)}
+                required
+              />
+            </Field>
+            <Field label="やってよかったこと">
+              <textarea
+                name="goodThings"
+                rows={4}
+                defaultValue={existing?.goodThings ?? ''}
+              />
+            </Field>
+            <Field label="直島に近づいたこと">
+              <textarea
+                name="closerToNaoshima"
+                rows={4}
+                defaultValue={existing?.closerToNaoshima ?? ''}
+              />
+            </Field>
+            <Field label="来月やること">
+              <textarea
+                name="nextMonth"
+                rows={4}
+                defaultValue={existing?.nextMonth ?? ''}
+              />
+            </Field>
+            <Field label="自由メモ">
+              <textarea
+                name="notes"
+                rows={3}
+                defaultValue={existing?.notes ?? ''}
+              />
+            </Field>
+            <SubmitButton pending={pending}>
+              {existing ? 'レビューを更新' : 'レビューを保存'}
+            </SubmitButton>
+          </form>
+        </Card>
+
+        <Card title="前月との比較" eyebrow="変化">
+          {latest && previous ? (
+            <div className="before-after">
+              <div>
+                <span>{previous.month}</span>
+                <strong>{Math.round(previous.readiness)}%</strong>
+                <p>{previous.savings.toLocaleString('ja-JP')}円</p>
+              </div>
+              <div>
+                <span>{latest.month}</span>
+                <strong>{Math.round(latest.readiness)}%</strong>
+                <p>{latest.savings.toLocaleString('ja-JP')}円</p>
+              </div>
+            </div>
+          ) : (
+            <EmptyState
+              title="比較には2回分のレビューが必要です"
+              description="レビュー保存時にその月の状態を記録します。"
+            />
+          )}
+        </Card>
+      </section>
+
+      <Card title="レビュー履歴" eyebrow="過去の月">
+        {data.reviews.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="review-list">
+            {data.reviews.map((review) => (
+              <article key={review.id}>
+                <CalendarCheck />
+                <div>
+                  <strong>{review.month}</strong>
+                  <p>
+                    {review.closerToNaoshima || review.goodThings || '記録済み'}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </Card>
+    </Page>
+  )
+}
+
+/* FEATURE_ARCHIVE_BEGIN: original analytics-rich review hub
+ *
+ * Restore this block for XP/savings monthly summaries, charts, journey replay,
+ * migration journal, mood logs, reason revisions, and the doubt card.
+ *
+import { useServerFn } from '@tanstack/react-start'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { BookHeart, CalendarCheck, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 import {
@@ -325,3 +525,4 @@ function ReviewsPage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

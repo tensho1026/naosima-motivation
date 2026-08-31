@@ -202,6 +202,25 @@ export const getMemoriesHub = createServerFn({ method: 'GET' }).handler(
   },
 )
 
+// Lean memories loader: the archived map, audio, visit planning, albums,
+// collections, bingo, quests, calendar, and comparisons are intentionally not
+// queried. Existing rows and the full getMemoriesHub implementation remain.
+export const getMemoriesCore = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const repository = contentRepository()
+    const [visitsList, memoriesList, photosList] = await Promise.all([
+      repository.listRecentVisits(),
+      repository.listRecentMemories(),
+      repository.listRecentPhotos(),
+    ])
+    return {
+      visits: visitsList,
+      memories: memoriesList,
+      photos: photosList,
+    }
+  },
+)
+
 export const getVisits = createServerFn({ method: 'GET' }).handler(() =>
   contentRepository().listVisits(),
 )
@@ -227,6 +246,20 @@ export const createVisit = createServerFn({ method: 'POST' })
       sourceId: visit?.id,
     })
     await checkAndUnlockAchievements()
+    return visit
+  })
+
+export const createVisitLean = createServerFn({ method: 'POST' })
+  .validator(createVisitSchema)
+  .handler(async ({ data }) => {
+    const visit = await contentRepository().saveVisit(data)
+    await coreRepository().logAction({
+      type: 'VISIT',
+      title: data.title,
+      description: `${data.startDate} → ${data.endDate}`,
+      category: 'NAOSHIMA',
+      sourceId: visit?.id,
+    })
     return visit
   })
 
@@ -433,6 +466,17 @@ export const getReviewsHub = createServerFn({ method: 'GET' }).handler(
   },
 )
 
+export const getReviewsCore = createServerFn({ method: 'GET' }).handler(
+  async () => {
+    const repository = contentRepository()
+    const [reviews, snapshots] = await Promise.all([
+      repository.listReviews(),
+      repository.listSnapshots(),
+    ])
+    return { reviews, snapshots }
+  },
+)
+
 export const getMonthlySummary = createServerFn({ method: 'GET' })
   .validator(monthSchema)
   .handler(async ({ data }) => {
@@ -516,6 +560,37 @@ export const createMonthlyReview = createServerFn({ method: 'POST' })
 export const updateMonthlyReview = createServerFn({ method: 'POST' })
   .validator(monthlyReviewSchema.required({ id: true }))
   .handler(({ data }) => saveReviewAndSnapshot(data))
+
+async function saveReviewAndSnapshotLean(
+  data: Parameters<ReturnType<typeof contentRepository>['saveReview']>[0],
+) {
+  const content = contentRepository()
+  const core = coreRepository()
+  const [review, conditions, finance, missionsList] = await Promise.all([
+    content.saveReview(data),
+    core.listConditions(),
+    core.getFinanceSettings(),
+    core.listMissions(),
+  ])
+  await content.saveSnapshot({
+    month: data.month,
+    readiness: calculateReadiness(conditions).overall,
+    savings: finance?.currentSavings ?? 0,
+    totalXp: 0,
+    completedMissions: missionsList.filter((mission) => mission.completed)
+      .length,
+    skillLevels: {},
+  })
+  return review
+}
+
+export const createMonthlyReviewLean = createServerFn({ method: 'POST' })
+  .validator(monthlyReviewSchema.omit({ id: true }))
+  .handler(({ data }) => saveReviewAndSnapshotLean(data))
+
+export const updateMonthlyReviewLean = createServerFn({ method: 'POST' })
+  .validator(monthlyReviewSchema.required({ id: true }))
+  .handler(({ data }) => saveReviewAndSnapshotLean(data))
 
 export const getExtraResource = createServerFn({ method: 'GET' })
   .validator(z.object({ resource: extraResourceNameSchema }))

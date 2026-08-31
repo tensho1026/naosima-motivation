@@ -1,5 +1,316 @@
 import { useServerFn } from '@tanstack/react-start'
 import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
+import { Check, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Field,
+  LoadingPage,
+  Page,
+  ProgressBar,
+  Stat,
+  SubmitButton,
+} from '#/components/ui/Primitives'
+import { useToast } from '#/components/ui/Toast'
+import {
+  createCondition,
+  createRoadmapItem,
+  deleteCondition,
+  deleteRoadmapItem,
+  toggleConditionLean,
+} from '#/server/core.functions'
+import { getJourneyDashboard } from '#/server/dashboard.functions'
+import { categoryLabel, readyStatusLabel } from '#/utils/display'
+
+export const Route = createFileRoute('/journey')({
+  loader: () => getJourneyDashboard(),
+  component: LeanJourneyPage,
+  pendingComponent: LoadingPage,
+})
+
+const leanCategories = [
+  'MONEY',
+  'WORK',
+  'SKILL',
+  'LIFESTYLE',
+  'NAOSHIMA',
+  'CONNECTION',
+] as const
+
+function LeanJourneyPage() {
+  const data = Route.useLoaderData()
+  const router = useRouter()
+  const { notify } = useToast()
+  const addCondition = useServerFn(createCondition)
+  const toggleCondition = useServerFn(toggleConditionLean)
+  const removeCondition = useServerFn(deleteCondition)
+  const addRoadmap = useServerFn(createRoadmapItem)
+  const removeRoadmap = useServerFn(deleteRoadmapItem)
+  const [pending, setPending] = useState(false)
+
+  async function run(action: () => Promise<unknown>, message: string) {
+    setPending(true)
+    try {
+      await action()
+      notify(message)
+      await router.invalidate({ sync: true })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '処理に失敗しました',
+        'error',
+      )
+    } finally {
+      setPending(false)
+    }
+  }
+
+  if (!data.settings) {
+    return (
+      <Page title="移住計画" eyebrow="直島までの道のり">
+        <Card title="先に基本設定が必要です">
+          <Link to="/settings" className="button primary">
+            基本設定を開く
+          </Link>
+        </Card>
+      </Page>
+    )
+  }
+
+  const remaining = data.conditions.filter(
+    (condition) => condition.required && !condition.completed,
+  ).length
+
+  return (
+    <Page
+      title="移住計画"
+      eyebrow="条件とロードマップ"
+      description="必要条件と節目だけを管理します。仕事やスキルの条件もここへまとめます。"
+    >
+      <section className="stats-grid page-stats">
+        <Stat
+          label="準備度"
+          value={`${Math.round(data.readiness.overall)}%`}
+          detail={readyStatusLabel(data.readyStatus)}
+          tone="sea"
+        />
+        <Stat label="残りの必須条件" value={`${remaining}件`} tone="coral" />
+        <Stat
+          label="登録済み条件"
+          value={`${data.conditions.length}件`}
+          tone="green"
+        />
+        <Stat
+          label="ロードマップ"
+          value={`${data.roadmap.length}件`}
+          tone="gold"
+        />
+      </section>
+
+      <ProgressBar value={data.readiness.overall} label="総合移住準備度" />
+
+      <section className="content-grid">
+        <Card title="移住条件" eyebrow="準備に必要なこと">
+          <form
+            className="stack-form"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const form = event.currentTarget
+              const values = new FormData(form)
+              await run(
+                () =>
+                  addCondition({
+                    data: {
+                      title: String(values.get('title')),
+                      description:
+                        String(values.get('description') || '') || null,
+                      category: String(
+                        values.get('category'),
+                      ) as (typeof leanCategories)[number],
+                      required: values.get('required') === 'on',
+                      weight: 1,
+                      targetValue: values.get('targetValue')
+                        ? Number(values.get('targetValue'))
+                        : null,
+                      currentValue: values.get('currentValue')
+                        ? Number(values.get('currentValue'))
+                        : null,
+                      unit: String(values.get('unit') || '') || null,
+                    },
+                  }),
+                '移住条件を追加しました',
+              )
+              form.reset()
+            }}
+          >
+            <Field label="条件">
+              <input name="title" placeholder="例: フルリモート勤務" required />
+            </Field>
+            <Field label="カテゴリ">
+              <select name="category">
+                {leanCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {categoryLabel(category)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="現在値">
+              <input name="currentValue" type="number" step="any" />
+            </Field>
+            <Field label="目標値">
+              <input name="targetValue" type="number" step="any" />
+            </Field>
+            <Field label="単位">
+              <input name="unit" placeholder="円 / 件 / 日" />
+            </Field>
+            <Field label="説明">
+              <textarea name="description" rows={2} />
+            </Field>
+            <label className="check-field">
+              <input name="required" type="checkbox" defaultChecked />
+              必須条件
+            </label>
+            <SubmitButton pending={pending}>条件を追加</SubmitButton>
+          </form>
+
+          <div className="item-list">
+            {data.conditions.map((condition) => (
+              <article className="list-row" key={condition.id}>
+                <button
+                  className={`condition-check ${condition.completed ? 'done' : ''}`}
+                  onClick={() =>
+                    run(
+                      () => toggleCondition({ data: { id: condition.id } }),
+                      '条件を更新しました',
+                    )
+                  }
+                  aria-label="達成状態を切り替え"
+                >
+                  {condition.completed ? <Check size={15} /> : null}
+                </button>
+                <div>
+                  <strong>{condition.title}</strong>
+                  <p>
+                    {categoryLabel(condition.category)}
+                    {condition.targetValue != null
+                      ? ` · ${condition.currentValue ?? 0}/${condition.targetValue}${condition.unit ?? ''}`
+                      : ''}
+                  </p>
+                </div>
+                <Badge tone={condition.required ? 'coral' : 'sea'}>
+                  {condition.required ? '必須' : '任意'}
+                </Badge>
+                <button
+                  className="icon-button danger"
+                  onClick={() =>
+                    window.confirm('削除しますか？') &&
+                    run(
+                      () => removeCondition({ data: { id: condition.id } }),
+                      '条件を削除しました',
+                    )
+                  }
+                >
+                  <Trash2 size={14} />
+                </button>
+              </article>
+            ))}
+          </div>
+        </Card>
+
+        <Card title="移住ロードマップ" eyebrow="目標までの節目">
+          <form
+            className="stack-form"
+            onSubmit={async (event) => {
+              event.preventDefault()
+              const form = event.currentTarget
+              const values = new FormData(form)
+              await run(
+                () =>
+                  addRoadmap({
+                    data: {
+                      title: String(values.get('title')),
+                      description:
+                        String(values.get('description') || '') || null,
+                      targetDate: String(values.get('targetDate')),
+                      status: 'NOT_STARTED',
+                      category: String(
+                        values.get('category'),
+                      ) as (typeof leanCategories)[number],
+                      sortOrder: data.roadmap.length,
+                    },
+                  }),
+                'ロードマップに追加しました',
+              )
+              form.reset()
+            }}
+          >
+            <Field label="節目">
+              <input name="title" required />
+            </Field>
+            <Field label="目標日">
+              <input name="targetDate" type="date" required />
+            </Field>
+            <Field label="カテゴリ">
+              <select name="category">
+                {leanCategories.map((category) => (
+                  <option key={category} value={category}>
+                    {categoryLabel(category)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="説明">
+              <textarea name="description" />
+            </Field>
+            <SubmitButton pending={pending}>節目を追加</SubmitButton>
+          </form>
+
+          {data.roadmap.length === 0 ? (
+            <EmptyState />
+          ) : (
+            <div className="roadmap-list">
+              {data.roadmap.map((item, index) => (
+                <article key={item.id} className="roadmap-node">
+                  <span>{index + 1}</span>
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>
+                      {item.targetDate} · {categoryLabel(item.category)}
+                    </p>
+                  </div>
+                  <button
+                    className="icon-button danger"
+                    onClick={() =>
+                      window.confirm('削除しますか？') &&
+                      run(
+                        () => removeRoadmap({ data: { id: item.id } }),
+                        '節目を削除しました',
+                      )
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </Card>
+      </section>
+    </Page>
+  )
+}
+
+/* FEATURE_ARCHIVE_BEGIN: original migration-plan dashboard
+ *
+ * Restore this block for virtual distance, milestone timeline, origin story,
+ * seasonal/focus goals, anniversaries, decision/anti-goal records, and
+ * time/money investment logs.
+ *
+import { useServerFn } from '@tanstack/react-start'
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router'
 import { Check, ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -552,3 +863,4 @@ function JourneyPage() {
     </Page>
   )
 }
+FEATURE_ARCHIVE_END */

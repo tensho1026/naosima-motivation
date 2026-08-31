@@ -361,6 +361,34 @@ export class ContentRepository {
     }))
   }
 
+  async listRecentVisits(limit = 50) {
+    const visitRows = await this.db
+      .select()
+      .from(visits)
+      .orderBy(desc(visits.startDate))
+      .limit(limit)
+      .all()
+    const visitIds = visitRows.map((visit) => visit.id)
+    const places =
+      visitIds.length > 0
+        ? await this.db
+            .select()
+            .from(visitPlaces)
+            .where(inArray(visitPlaces.visitId, visitIds))
+            .all()
+        : []
+    const placesByVisit = new Map<string, string[]>()
+    for (const place of places) {
+      const current = placesByVisit.get(place.visitId) ?? []
+      current.push(place.placeName)
+      placesByVisit.set(place.visitId, current)
+    }
+    return visitRows.map((visit) => ({
+      ...visit,
+      places: placesByVisit.get(visit.id) ?? [],
+    }))
+  }
+
   async saveVisit({ places = [], ...input }: VisitInput) {
     const visitId = input.id ?? crypto.randomUUID()
     const write = input.id
@@ -382,7 +410,16 @@ export class ContentRepository {
         )
         .run()
     }
-    return (await this.listVisits()).find((visit) => visit.id === visitId)
+    // FEATURE_ARCHIVE: the former implementation scanned every visit:
+    // return (await this.listVisits()).find((visit) => visit.id === visitId)
+    const savedVisit = await this.db
+      .select()
+      .from(visits)
+      .where(eq(visits.id, visitId))
+      .get()
+    return savedVisit
+      ? { ...savedVisit, places: [...new Set(places)] }
+      : undefined
   }
 
   deleteVisit(id: string) {
@@ -391,6 +428,15 @@ export class ContentRepository {
 
   listMemories() {
     return this.db.select().from(memories).orderBy(desc(memories.date)).all()
+  }
+
+  listRecentMemories(limit = 100) {
+    return this.db
+      .select()
+      .from(memories)
+      .orderBy(desc(memories.date))
+      .limit(limit)
+      .all()
   }
 
   saveMemory(input: typeof memories.$inferInsert) {
@@ -414,6 +460,15 @@ export class ContentRepository {
       .select()
       .from(photos)
       .orderBy(desc(photos.favorite), desc(photos.takenAt))
+      .all()
+  }
+
+  listRecentPhotos(limit = 60) {
+    return this.db
+      .select()
+      .from(photos)
+      .orderBy(desc(photos.favorite), desc(photos.takenAt))
+      .limit(limit)
       .all()
   }
 
