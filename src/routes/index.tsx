@@ -94,6 +94,41 @@ function LeanDashboardPage() {
         />
       </section>
 
+      {data.featuredPhoto ? (
+        <figure className="home-featured-photo">
+          <img
+            src={data.featuredPhoto.imageUrl}
+            alt={data.featuredPhoto.caption ?? '直島の思い出'}
+            width={1600}
+            height={900}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+          />
+          <figcaption>
+            <p className="eyebrow">直島の記憶</p>
+            <h2>{data.featuredPhoto.caption ?? '直島の一枚'}</h2>
+            {data.featuredPhoto.takenAt ? (
+              <p>{data.featuredPhoto.takenAt}</p>
+            ) : null}
+            <Link to="/memories" className="button light">
+              写真を管理する <ArrowRight size={14} />
+            </Link>
+          </figcaption>
+        </figure>
+      ) : (
+        <section className="home-photo-empty">
+          <div>
+            <p className="eyebrow">直島の記憶</p>
+            <h2>ホームに写真を飾る</h2>
+            <p>思い出に写真を追加すると、次回からここに大きく表示されます。</p>
+          </div>
+          <Link to="/memories" className="button primary">
+            写真を追加する <ArrowRight size={14} />
+          </Link>
+        </section>
+      )}
+
       <section className="content-grid">
         <Card title="今日の行動" eyebrow="次にやること">
           {data.todayStep ? (

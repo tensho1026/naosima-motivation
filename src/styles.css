@@ -1833,6 +1833,10 @@ button {
     align-items: flex-start;
     flex-direction: column;
   }
+  .home-photo-empty {
+    align-items: flex-start;
+    flex-direction: column;
+  }
   .hero-readiness {
     width: 8.5rem;
     min-height: 8.5rem;
@@ -1871,6 +1875,86 @@ button {
 
 .page-stats {
   margin-bottom: 1rem;
+}
+.home-featured-photo,
+.home-photo-empty {
+  position: relative;
+  overflow: hidden;
+  min-height: clamp(22rem, 52vw, 36rem);
+  margin: 0 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1.5rem;
+  background: var(--surface-strong);
+  box-shadow: 0 25px 60px rgba(30, 90, 72, 0.12);
+}
+.home-featured-photo {
+  isolation: isolate;
+}
+.home-featured-photo::after {
+  content: '';
+  position: absolute;
+  inset: 35% 0 0;
+  z-index: 1;
+  background: linear-gradient(180deg, transparent, rgba(12, 35, 39, 0.92));
+}
+.home-featured-photo img {
+  position: relative;
+  z-index: 0;
+  width: 100%;
+  height: clamp(22rem, 52vw, 36rem);
+  display: block;
+  object-fit: cover;
+}
+.home-featured-photo figcaption {
+  position: absolute;
+  right: clamp(1.25rem, 5vw, 4rem);
+  bottom: clamp(1.25rem, 5vw, 3.5rem);
+  left: clamp(1.25rem, 5vw, 4rem);
+  z-index: 2;
+  color: #f7fbf8;
+}
+.home-featured-photo figcaption .eyebrow {
+  color: rgba(247, 251, 248, 0.82);
+}
+.home-featured-photo h2,
+.home-photo-empty h2 {
+  max-width: 52rem;
+  margin: 0.25rem 0 0;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: clamp(2rem, 5vw, 4.2rem);
+  line-height: 1;
+}
+.home-featured-photo figcaption p:not(.eyebrow) {
+  margin: 0.65rem 0 1rem;
+  color: rgba(247, 251, 248, 0.82);
+}
+.home-featured-photo .button.light {
+  color: var(--sea-ink);
+  background: #f7fbf8;
+}
+.home-photo-empty {
+  min-height: 14rem;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  background:
+    radial-gradient(
+      circle at 85% 20%,
+      rgba(255, 255, 255, 0.55),
+      transparent 24%
+    ),
+    linear-gradient(
+      125deg,
+      color-mix(in oklab, var(--lagoon) 32%, var(--surface-strong)),
+      color-mix(in oklab, var(--palm) 14%, var(--surface))
+    );
+}
+.home-photo-empty p:not(.eyebrow) {
+  max-width: 40rem;
+  margin: 0.75rem 0 0;
+  color: var(--sea-ink-soft);
 }
 .journey-core,
 .mission-layout,

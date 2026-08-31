@@ -472,6 +472,30 @@ export class ContentRepository {
       .all()
   }
 
+  /**
+   * Home only needs one image and does not need storageKey or other metadata.
+   * Keep this projection separate from listRecentPhotos so the home loader
+   * never transfers the complete photo collection.
+   */
+  getFeaturedPhoto() {
+    return this.db
+      .select({
+        id: photos.id,
+        imageUrl: photos.imageUrl,
+        caption: photos.caption,
+        takenAt: photos.takenAt,
+        favorite: photos.favorite,
+      })
+      .from(photos)
+      .orderBy(
+        desc(photos.favorite),
+        desc(photos.takenAt),
+        desc(photos.createdAt),
+      )
+      .limit(1)
+      .get()
+  }
+
   getPhoto(id: string) {
     return this.db.select().from(photos).where(eq(photos.id, id)).get()
   }
