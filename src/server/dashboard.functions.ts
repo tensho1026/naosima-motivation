@@ -10,6 +10,7 @@ import {
   calculateReadyStatus,
 } from '#/services/readiness.service'
 
+import { contentRepository } from './content-repository.server'
 import { coreRepository } from './core-repository.server'
 
 function pickNextMission<
@@ -34,20 +35,23 @@ function pickNextMission<
 }
 
 /**
- * Lean home loader: five focused D1 reads instead of the former all-feature
+ * Lean home loader: six focused D1 reads instead of the former all-feature
  * dashboard aggregate. No Career, Skills, memories, future content, XP,
- * achievements, action history, or generic extra resources are fetched.
+ * achievements, action history, or generic extra resources are fetched. The
+ * home photo is a single metadata row; the image bytes stay in R2 until the
+ * browser requests the visible image.
  */
 export const getHomeDashboard = createServerFn({ method: 'GET' }).handler(
   async () => {
     const repository = coreRepository()
-    const [settings, conditions, missions, finance, savings] =
+    const [settings, conditions, missions, finance, savings, featuredPhoto] =
       await Promise.all([
         repository.getSettings(),
         repository.listConditions(),
         repository.listMissions(),
         repository.getFinanceSettings(),
         repository.listRecentSavings(),
+        contentRepository().getFeaturedPhoto(),
       ])
     const readiness = calculateReadiness(conditions)
     const averageMonthlySaving = averageRecentMonthlySaving(savings)
@@ -75,6 +79,7 @@ export const getHomeDashboard = createServerFn({ method: 'GET' }).handler(
       openMissions: missions.filter((mission) => !mission.completed).length,
       finance,
       forecast,
+      featuredPhoto,
     }
   },
 )
