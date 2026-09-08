@@ -18,7 +18,11 @@ import {
   deleteSavingTransaction,
   updateFinanceSettingsLean,
 } from '#/server/core.functions'
-import { getFinanceDashboard } from '#/server/dashboard.functions'
+import {
+  getFinanceDashboard,
+  getSavingsPage,
+} from '#/server/dashboard.functions'
+import { formatAppDate } from '#/utils/date'
 
 export const Route = createFileRoute('/finance')({
   loader: () => getFinanceDashboard(),
@@ -36,7 +40,24 @@ function LeanFinancePage() {
   const saveSettings = useServerFn(updateFinanceSettingsLean)
   const addSaving = useServerFn(createSavingTransactionLean)
   const removeSaving = useServerFn(deleteSavingTransaction)
+  const loadSavings = useServerFn(getSavingsPage)
   const [pending, setPending] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  type SavingsState = {
+    data: typeof data
+    savings: typeof data.savings
+    cursor: typeof data.pagination.savings.nextCursor
+  }
+  const initialSavingsState: SavingsState = {
+    data,
+    savings: data.savings,
+    cursor: data.pagination.savings.nextCursor,
+  }
+  const [savingsState, setSavingsState] =
+    useState<SavingsState>(initialSavingsState)
+  const currentSavingsState =
+    savingsState.data === data ? savingsState : initialSavingsState
+  const { savings, cursor: savingsCursor } = currentSavingsState
 
   async function run(action: () => Promise<unknown>, message: string) {
     setPending(true)
@@ -51,6 +72,33 @@ function LeanFinancePage() {
       )
     } finally {
       setPending(false)
+    }
+  }
+
+  async function loadMoreSavings() {
+    if (!savingsCursor) return
+    setLoadingMore(true)
+    try {
+      const page = await loadSavings({
+        data: { cursor: savingsCursor, limit: 20 },
+      })
+      setSavingsState((current) => {
+        const base = current.data === data ? current : currentSavingsState
+        return {
+          ...base,
+          savings: [...base.savings, ...page.items],
+          cursor: page.nextCursor,
+        }
+      })
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : '資金履歴の読み込みに失敗しました',
+        'error',
+      )
+    } finally {
+      setLoadingMore(false)
     }
   }
 
@@ -179,7 +227,7 @@ function LeanFinancePage() {
               <input
                 name="date"
                 type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={formatAppDate()}
                 required
               />
             </Field>
@@ -190,7 +238,7 @@ function LeanFinancePage() {
           </form>
 
           <div className="item-list">
-            {data.savings.slice(0, 20).map((row) => (
+            {savings.map((row) => (
               <article className="list-row" key={row.id}>
                 <div>
                   <strong
@@ -207,6 +255,8 @@ function LeanFinancePage() {
                 </div>
                 <button
                   className="icon-button danger"
+                  type="button"
+                  aria-label={`${row.date}の資金記録を削除`}
                   onClick={() =>
                     window.confirm('削除して残高を戻しますか？') &&
                     run(
@@ -220,6 +270,16 @@ function LeanFinancePage() {
               </article>
             ))}
           </div>
+          {savingsCursor ? (
+            <button
+              className="button ghost"
+              type="button"
+              onClick={() => void loadMoreSavings()}
+              disabled={loadingMore}
+            >
+              {loadingMore ? '読み込み中…' : '資金履歴をさらに読み込む'}
+            </button>
+          ) : null}
         </Card>
       </section>
     </Page>

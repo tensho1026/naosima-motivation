@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
 
 import {
   averageRecentMonthlySaving,
@@ -9,9 +10,15 @@ import {
   calculateReadiness,
   calculateReadyStatus,
 } from '#/services/readiness.service'
+import { formatAppDate } from '#/utils/date'
 
 import { contentRepository } from './content-repository.server'
 import { coreRepository } from './core-repository.server'
+
+const savingsPageSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(20),
+  cursor: z.object({ date: z.string(), id: z.string() }).optional(),
+})
 
 function pickNextMission<
   T extends {
@@ -21,7 +28,7 @@ function pickNextMission<
     impactScore: number
   },
 >(missions: T[]) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = formatAppDate()
   const incomplete = missions.filter((mission) => !mission.completed)
 
   return (
@@ -67,7 +74,7 @@ export const getHomeDashboard = createServerFn({ method: 'GET' }).handler(
     return {
       settings,
       countdown: calculateCountdown(
-        settings?.migrationTargetDate ?? new Date().toISOString().slice(0, 10),
+        settings?.migrationTargetDate ?? formatAppDate(),
       ),
       readiness,
       readyStatus: calculateReadyStatus(conditions),
@@ -121,15 +128,22 @@ export const getMissionsDashboard = createServerFn({ method: 'GET' }).handler(
 export const getFinanceDashboard = createServerFn({ method: 'GET' }).handler(
   async () => {
     const repository = coreRepository()
-    const [finance, savings] = await Promise.all([
+    const [finance, savingsPage] = await Promise.all([
       repository.getFinanceSettings(),
-      repository.listRecentSavings(),
+      repository.listRecentSavingsPage(),
     ])
+    const savings = savingsPage.items
     const averageMonthlySaving = averageRecentMonthlySaving(savings)
 
     return {
       finance,
       savings,
+      pagination: {
+        savings: {
+          nextCursor: savingsPage.nextCursor,
+          totalCount: savingsPage.totalCount,
+        },
+      },
       averageMonthlySaving: averageMonthlySaving ?? 0,
       forecast: finance
         ? calculateSavingForecast({
@@ -142,6 +156,12 @@ export const getFinanceDashboard = createServerFn({ method: 'GET' }).handler(
     }
   },
 )
+
+export const getSavingsPage = createServerFn({ method: 'GET' })
+  .validator(savingsPageSchema)
+  .handler(({ data }) =>
+    coreRepository().listRecentSavingsPage(data.limit, data.cursor),
+  )
 
 /* FEATURE_ARCHIVE_BEGIN: full cross-feature dashboard loader
  *
