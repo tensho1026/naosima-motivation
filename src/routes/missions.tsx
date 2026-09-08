@@ -22,6 +22,7 @@ import {
 } from '#/server/core.functions'
 import { getMissionsDashboard } from '#/server/dashboard.functions'
 import { categoryLabel } from '#/utils/display'
+import { formatAppDate } from '#/utils/date'
 
 export const Route = createFileRoute('/missions')({
   loader: () => getMissionsDashboard(),
@@ -158,7 +159,7 @@ function LeanMissionsPage() {
               <input
                 name="scheduledDate"
                 type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={formatAppDate()}
               />
             </Field>
             <Field label="所要時間（分）">
@@ -205,6 +206,12 @@ function LeanMissionsPage() {
                 >
                   <button
                     className="mission-check"
+                    type="button"
+                    aria-label={
+                      mission.completed
+                        ? `「${mission.title}」を未完了に戻す`
+                        : `「${mission.title}」を完了にする`
+                    }
                     onClick={() =>
                       run(
                         () =>
@@ -240,6 +247,8 @@ function LeanMissionsPage() {
                   </div>
                   <button
                     className="icon-button danger"
+                    type="button"
+                    aria-label={`「${mission.title}」を削除`}
                     onClick={() =>
                       window.confirm('行動を削除しますか？') &&
                       run(

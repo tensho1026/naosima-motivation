@@ -1,5 +1,6 @@
 import { calculateJourney } from '#/services/journey.service'
 import { calculateReadiness } from '#/services/readiness.service'
+import { formatAppDate } from '#/utils/date'
 
 import { contentRepository } from './content-repository.server'
 import { coreRepository } from './core-repository.server'
@@ -16,7 +17,7 @@ export async function checkAndUnlockAchievements(
     conditions,
     actions,
     career,
-    visits,
+    visitsCount,
   ] = await Promise.all([
     repository.getSettings(),
     repository.listAchievements(),
@@ -26,7 +27,7 @@ export async function checkAndUnlockAchievements(
     repository.listConditions(),
     repository.listActions(10_000),
     repository.listCareer(),
-    contentRepository().listVisits(),
+    contentRepository().countVisits(),
   ])
   const independentIncome = career.sources
     .filter((source) => source.active && source.type !== 'SALARY')
@@ -40,9 +41,9 @@ export async function checkAndUnlockAchievements(
       settings?.virtualJourneyDistance ?? 1_000,
     ).progressKm,
     READINESS: calculateReadiness(conditions).overall,
-    VISIT_COUNT: visits.length,
+    VISIT_COUNT: visitsCount,
     ACTIVITY_DAYS: new Set(
-      actions.map((action) => action.occurredAt.toISOString().slice(0, 10)),
+      actions.map((action) => formatAppDate(action.occurredAt)),
     ).size,
     SIDE_INCOME: independentIncome,
     REMOTE_WORK: career.conditions.some(

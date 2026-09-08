@@ -1,3 +1,5 @@
+import 'leaflet/dist/leaflet.css'
+
 import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
 
 type Point = {

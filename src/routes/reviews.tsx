@@ -18,6 +18,7 @@ import {
   getReviewsCore,
   updateMonthlyReviewLean,
 } from '#/server/content.functions'
+import { formatAppMonth } from '#/utils/date'
 
 export const Route = createFileRoute('/reviews')({
   loader: () => getReviewsCore(),
@@ -25,7 +26,7 @@ export const Route = createFileRoute('/reviews')({
   pendingComponent: LoadingPage,
 })
 
-const leanCurrentMonth = () => new Date().toISOString().slice(0, 7)
+const leanCurrentMonth = () => formatAppMonth()
 
 function LeanReviewsPage() {
   const data = Route.useLoaderData()

@@ -181,13 +181,18 @@ function LeanJourneyPage() {
               <article className="list-row" key={condition.id}>
                 <button
                   className={`condition-check ${condition.completed ? 'done' : ''}`}
+                  type="button"
                   onClick={() =>
                     run(
                       () => toggleCondition({ data: { id: condition.id } }),
                       '条件を更新しました',
                     )
                   }
-                  aria-label="達成状態を切り替え"
+                  aria-label={
+                    condition.completed
+                      ? `「${condition.title}」を未達成に戻す`
+                      : `「${condition.title}」を達成にする`
+                  }
                 >
                   {condition.completed ? <Check size={15} /> : null}
                 </button>
@@ -205,6 +210,8 @@ function LeanJourneyPage() {
                 </Badge>
                 <button
                   className="icon-button danger"
+                  type="button"
+                  aria-label={`「${condition.title}」を削除`}
                   onClick={() =>
                     window.confirm('削除しますか？') &&
                     run(
@@ -283,6 +290,8 @@ function LeanJourneyPage() {
                   </div>
                   <button
                     className="icon-button danger"
+                    type="button"
+                    aria-label={`「${item.title}」を削除`}
                     onClick={() =>
                       window.confirm('削除しますか？') &&
                       run(
@@ -582,6 +591,8 @@ function JourneyPage() {
                 </Badge>
                 <button
                   className="icon-button danger"
+                  type="button"
+                  aria-label={`「${item.title}」を削除`}
                   onClick={() =>
                     window.confirm('削除しますか？') &&
                     mutate(

@@ -3,6 +3,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 
 import { calculateReadiness } from '#/services/readiness.service'
+import { appMonthEnd, formatAppDate, formatAppMonth } from '#/utils/date'
 
 import {
   audioMetadataSchema,
@@ -23,12 +24,28 @@ import {
   updateVisitSchema,
 } from './content-validation'
 import { contentRepository } from './content-repository.server'
-import { coreRepository } from './core-repository.server'
+import { coreRepository, type CoreRepository } from './core-repository.server'
 import { idSchema, reorderSchema } from './validation'
 import { checkAndUnlockAchievements } from './achievement-check.server'
 
 const monthSchema = z.object({
   month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+})
+
+const pageLimit = z.number().int().min(1).max(50).default(20)
+const visitsPageSchema = z.object({
+  limit: pageLimit,
+  cursor: z.object({ startDate: z.string(), id: z.string() }).optional(),
+})
+const memoriesPageSchema = z.object({
+  limit: pageLimit,
+  cursor: z.object({ date: z.string(), id: z.string() }).optional(),
+})
+const photosPageSchema = z.object({
+  limit: pageLimit,
+  cursor: z
+    .object({ favorite: z.boolean(), createdAt: z.string(), id: z.string() })
+    .optional(),
 })
 
 const uploadFormSchema = z.custom<FormData>(
@@ -45,6 +62,30 @@ function extensionFor(file: File) {
       .pop()
       ?.replace(/[^a-z0-9]/g, '') || 'bin'
   )
+}
+
+function positiveInteger(value: FormDataEntryValue | null) {
+  const parsed = Number(value)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+async function processMediaCleanup(limit = 50) {
+  const repository = contentRepository()
+  const jobs = await repository.listPendingMediaCleanup(limit)
+  for (const job of jobs) {
+    try {
+      await env.PHOTOS.delete(job.storageKey)
+      await repository.markMediaCleanupComplete(job.storageKey)
+    } catch (error) {
+      await repository.markMediaCleanupAttempt(
+        job.storageKey,
+        error instanceof Error
+          ? error.message
+          : 'R2オブジェクトの削除に失敗しました',
+      )
+    }
+  }
+  return { processed: jobs.length }
 }
 
 export const getFutureHub = createServerFn({ method: 'GET' }).handler(
@@ -66,7 +107,7 @@ export const getFutureHub = createServerFn({ method: 'GET' }).handler(
           'timeCapsules',
         ]),
       ])
-    const today = new Date().toISOString().slice(0, 10)
+    const today = formatAppDate()
     const maskLocked = (
       rows: Array<Record<string, string | number | boolean | null>>,
       dateField: string,
@@ -208,18 +249,50 @@ export const getMemoriesHub = createServerFn({ method: 'GET' }).handler(
 export const getMemoriesCore = createServerFn({ method: 'GET' }).handler(
   async () => {
     const repository = contentRepository()
-    const [visitsList, memoriesList, photosList] = await Promise.all([
-      repository.listRecentVisits(),
-      repository.listRecentMemories(),
-      repository.listRecentPhotos(),
+    const [visitsPage, memoriesPage, photosPage] = await Promise.all([
+      repository.listRecentVisitsPage(),
+      repository.listRecentMemoriesPage(),
+      repository.listRecentPhotosPage(),
     ])
     return {
-      visits: visitsList,
-      memories: memoriesList,
-      photos: photosList,
+      visits: visitsPage.items,
+      memories: memoriesPage.items,
+      photos: photosPage.items,
+      pagination: {
+        visits: {
+          nextCursor: visitsPage.nextCursor,
+          totalCount: visitsPage.totalCount,
+        },
+        memories: {
+          nextCursor: memoriesPage.nextCursor,
+          totalCount: memoriesPage.totalCount,
+        },
+        photos: {
+          nextCursor: photosPage.nextCursor,
+          totalCount: photosPage.totalCount,
+        },
+      },
     }
   },
 )
+
+export const getVisitsPage = createServerFn({ method: 'GET' })
+  .validator(visitsPageSchema)
+  .handler(({ data }) =>
+    contentRepository().listRecentVisitsPage(data.limit, data.cursor),
+  )
+
+export const getMemoriesPage = createServerFn({ method: 'GET' })
+  .validator(memoriesPageSchema)
+  .handler(({ data }) =>
+    contentRepository().listRecentMemoriesPage(data.limit, data.cursor),
+  )
+
+export const getPhotosPage = createServerFn({ method: 'GET' })
+  .validator(photosPageSchema)
+  .handler(({ data }) =>
+    contentRepository().listRecentPhotosPage(data.limit, data.cursor),
+  )
 
 export const getVisits = createServerFn({ method: 'GET' }).handler(() =>
   contentRepository().listVisits(),
@@ -304,19 +377,41 @@ export const createPhoto = createServerFn({ method: 'POST' })
       caption: data.get('caption') || null,
       takenAt: data.get('takenAt') || null,
     })
-    const storageKey = `photos/${crypto.randomUUID()}.${extensionFor(file)}`
+    const photoId = crypto.randomUUID()
+    const storageKey = `photos/${photoId}.${extensionFor(file)}`
+    const thumbnail = data.get('thumbnail')
+    const hasThumbnail =
+      thumbnail instanceof File &&
+      thumbnail.type === 'image/webp' &&
+      thumbnail.size > 0 &&
+      thumbnail.size <= 2 * 1024 * 1024
+    const thumbnailStorageKey = hasThumbnail
+      ? `thumbnails/${photoId}.webp`
+      : null
     await env.PHOTOS.put(storageKey, file.stream(), {
       httpMetadata: { contentType: file.type },
     })
     try {
+      if (hasThumbnail) {
+        await env.PHOTOS.put(thumbnailStorageKey!, thumbnail.stream(), {
+          httpMetadata: { contentType: 'image/webp' },
+        })
+      }
       return await contentRepository().savePhoto({
         storageKey,
+        thumbnailStorageKey,
+        thumbnailUrl: thumbnailStorageKey
+          ? `/media/${thumbnailStorageKey}`
+          : null,
+        width: positiveInteger(data.get('width')),
+        height: positiveInteger(data.get('height')),
         imageUrl: `/media/${storageKey}`,
         caption: metadata.caption,
         takenAt: metadata.takenAt,
       })
     } catch (error) {
       await env.PHOTOS.delete(storageKey)
+      if (thumbnailStorageKey) await env.PHOTOS.delete(thumbnailStorageKey)
       throw error
     }
   })
@@ -327,10 +422,19 @@ export const deletePhoto = createServerFn({ method: 'POST' })
     const repository = contentRepository()
     const photo = await repository.getPhoto(data.id)
     if (!photo) throw new Error('写真が見つかりません')
-    await env.PHOTOS.delete(photo.storageKey)
-    await repository.deletePhotoMetadata(photo.id)
+    await repository.deletePhotoAndQueueCleanup(
+      photo.id,
+      [photo.storageKey, photo.thumbnailStorageKey].filter(
+        (key): key is string => Boolean(key),
+      ),
+    )
+    await processMediaCleanup()
     return { deleted: true }
   })
+
+export const retryMediaCleanup = createServerFn({ method: 'POST' }).handler(
+  () => processMediaCleanup(100),
+)
 
 export const setFavoritePhoto = createServerFn({ method: 'POST' })
   .validator(z.object({ id: z.string().uuid(), favorite: z.boolean() }))
@@ -400,8 +504,8 @@ export const deleteAudioRecord = createServerFn({ method: 'POST' })
     const repository = contentRepository()
     const audio = await repository.getAudio(data.id)
     if (!audio) throw new Error('音声が見つかりません')
-    await env.PHOTOS.delete(audio.storageKey)
-    await repository.deleteAudioMetadata(audio.id)
+    await repository.deleteAudioAndQueueCleanup(audio.id, audio.storageKey)
+    await processMediaCleanup()
     return { deleted: true }
   })
 
@@ -484,20 +588,23 @@ export const getMonthlySummary = createServerFn({ method: 'GET' })
     const [missions, actions, conditions, finance, totalXp, review] =
       await Promise.all([
         repository.listMissions(),
-        repository.listActions(500),
+        repository.listActions(2_000),
         repository.listConditions(),
         repository.getFinanceSettings(),
         repository.totalXp(),
         contentRepository().getReview(data.month),
       ])
     const inMonth = (date: Date | null) =>
-      Boolean(date && date.toISOString().startsWith(data.month))
+      Boolean(date && formatAppDate(date).startsWith(data.month))
     const monthActions = actions.filter((action) => inMonth(action.occurredAt))
     return {
       month: data.month,
-      completedMissions: missions.filter(
-        (mission) => mission.completed && inMonth(mission.completedAt),
-      ).length,
+      completedMissions:
+        monthActions.filter((action) => action.type === 'MISSION_COMPLETED')
+          .length ||
+        missions.filter(
+          (mission) => mission.completed && inMonth(mission.completedAt),
+        ).length,
       gainedXp: monthActions
         .filter((action) => action.type === 'MISSION_COMPLETED')
         .reduce((sum, action) => sum + (action.amount ?? 0), 0),
@@ -512,39 +619,124 @@ export const getMonthlySummary = createServerFn({ method: 'GET' })
       savedAmount: monthActions
         .filter((action) => action.type === 'SAVING')
         .reduce((sum, action) => sum + (action.amount ?? 0), 0),
-      readiness: calculateReadiness(conditions),
-      currentSavings: finance?.currentSavings ?? 0,
+      readiness: calculateHistoricalReadiness(conditions, data.month, actions),
+      currentSavings: savingsAtMonth(
+        finance?.currentSavings ?? 0,
+        await repository.listSavings(),
+        data.month,
+      ),
       totalXp,
       actions: monthActions,
       review,
     }
   })
 
+function calculateHistoricalReadiness(
+  conditions: Awaited<ReturnType<CoreRepository['listConditions']>>,
+  month: string,
+  actions: Awaited<ReturnType<CoreRepository['listActions']>> = [],
+) {
+  const end = appMonthEnd(month)
+  const currentMonth = formatAppMonth()
+  if (month === currentMonth) return calculateReadiness(conditions)
+  return calculateReadiness(
+    conditions.map((condition) => {
+      const latestConditionAction = actions
+        .filter(
+          (action) =>
+            action.sourceId === condition.id &&
+            (action.type === 'CONDITION_COMPLETED' ||
+              action.title.startsWith('条件を未達成へ')) &&
+            formatAppDate(action.occurredAt) <= end,
+        )
+        .at(0)
+      const completionDate = condition.completedAt
+        ? formatAppDate(condition.completedAt)
+        : null
+      const completedAtTarget = Boolean(
+        latestConditionAction?.type === 'CONDITION_COMPLETED' ||
+        (condition.completed && completionDate && completionDate <= end),
+      )
+      return completedAtTarget
+        ? condition
+        : {
+            ...condition,
+            completed: false,
+            currentValue: null,
+            completedAt: null,
+          }
+    }),
+  )
+}
+
+function savingsAtMonth(
+  currentSavings: number,
+  transactions: Awaited<ReturnType<CoreRepository['listSavings']>>,
+  month: string,
+) {
+  const end = appMonthEnd(month)
+  const changesAfterMonth = transactions
+    .filter((transaction) => transaction.date > end)
+    .reduce(
+      (total, transaction) =>
+        total +
+        (transaction.type === 'DEPOSIT'
+          ? transaction.amount
+          : -transaction.amount),
+      0,
+    )
+  return Math.max(currentSavings - changesAfterMonth, 0)
+}
+
 async function saveReviewAndSnapshot(
   data: Parameters<ReturnType<typeof contentRepository>['saveReview']>[0],
 ) {
   const content = contentRepository()
   const core = coreRepository()
-  const [review, conditions, finance, totalXp, missionsList, skillList] =
-    await Promise.all([
-      content.saveReview(data),
-      core.listConditions(),
-      core.getFinanceSettings(),
-      core.totalXp(),
-      core.listMissions(),
-      core.listSkills(),
-    ])
-  await content.saveSnapshot({
-    month: data.month,
-    readiness: calculateReadiness(conditions).overall,
-    savings: finance?.currentSavings ?? 0,
+  const [
+    conditions,
+    finance,
     totalXp,
-    completedMissions: missionsList.filter((mission) => mission.completed)
-      .length,
+    missionsList,
+    skillList,
+    actions,
+    savings,
+  ] = await Promise.all([
+    core.listConditions(),
+    core.getFinanceSettings(),
+    core.totalXp(),
+    core.listMissions(),
+    core.listSkills(),
+    core.listActions(2_000),
+    core.listSavings(),
+  ])
+  const monthActions = actions.filter((action) =>
+    formatAppDate(action.occurredAt).startsWith(data.month),
+  )
+  const snapshot = {
+    month: data.month,
+    readiness: calculateHistoricalReadiness(conditions, data.month, actions)
+      .overall,
+    savings: savingsAtMonth(finance?.currentSavings ?? 0, savings, data.month),
+    totalXp,
+    completedMissions:
+      monthActions.filter((action) => action.type === 'MISSION_COMPLETED')
+        .length ||
+      missionsList.filter(
+        (mission) =>
+          mission.completed &&
+          Boolean(
+            mission.completedAt &&
+            formatAppDate(mission.completedAt).startsWith(data.month),
+          ),
+      ).length,
     skillLevels: Object.fromEntries(
       skillList.map((skill) => [skill.name, skill.level]),
     ),
-  })
+  } satisfies Parameters<
+    ReturnType<typeof contentRepository>['saveSnapshot']
+  >[0]
+  const review = await content.saveReviewAndSnapshot(data, snapshot)
   await core.logAction({
     type: 'REVIEW',
     title: `${data.month} 月次レビュー`,
@@ -566,22 +758,39 @@ async function saveReviewAndSnapshotLean(
 ) {
   const content = contentRepository()
   const core = coreRepository()
-  const [review, conditions, finance, missionsList] = await Promise.all([
-    content.saveReview(data),
-    core.listConditions(),
-    core.getFinanceSettings(),
-    core.listMissions(),
-  ])
-  await content.saveSnapshot({
+  const [conditions, finance, missionsList, actions, savings] =
+    await Promise.all([
+      core.listConditions(),
+      core.getFinanceSettings(),
+      core.listMissions(),
+      core.listActions(2_000),
+      core.listSavings(),
+    ])
+  const monthActions = actions.filter((action) =>
+    formatAppDate(action.occurredAt).startsWith(data.month),
+  )
+  const snapshot = {
     month: data.month,
-    readiness: calculateReadiness(conditions).overall,
-    savings: finance?.currentSavings ?? 0,
+    readiness: calculateHistoricalReadiness(conditions, data.month, actions)
+      .overall,
+    savings: savingsAtMonth(finance?.currentSavings ?? 0, savings, data.month),
     totalXp: 0,
-    completedMissions: missionsList.filter((mission) => mission.completed)
-      .length,
+    completedMissions:
+      monthActions.filter((action) => action.type === 'MISSION_COMPLETED')
+        .length ||
+      missionsList.filter(
+        (mission) =>
+          mission.completed &&
+          Boolean(
+            mission.completedAt &&
+            formatAppDate(mission.completedAt).startsWith(data.month),
+          ),
+      ).length,
     skillLevels: {},
-  })
-  return review
+  } satisfies Parameters<
+    ReturnType<typeof contentRepository>['saveSnapshot']
+  >[0]
+  return content.saveReviewAndSnapshot(data, snapshot)
 }
 
 export const createMonthlyReviewLean = createServerFn({ method: 'POST' })
@@ -610,7 +819,13 @@ export const deleteExtraResource = createServerFn({ method: 'POST' })
     if (data.resource === 'timeCapsules') {
       const capsule = await repository.getExtra(data.resource, data.id)
       if (typeof capsule?.storageKey === 'string') {
-        await env.PHOTOS.delete(capsule.storageKey)
+        await repository.deleteExtraAndQueueCleanup(
+          data.resource,
+          data.id,
+          capsule.storageKey,
+        )
+        await processMediaCleanup()
+        return { deleted: true }
       }
     }
     return repository.deleteExtra(data.resource, data.id)

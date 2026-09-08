@@ -6,6 +6,9 @@ import {
   inArray,
   isNotNull,
   isNull,
+  count,
+  lt,
+  or,
   sql,
 } from 'drizzle-orm'
 
@@ -29,6 +32,13 @@ import {
   xpTransactions,
 } from '#/db/schema'
 import { requiredXp } from '#/services/xp.service'
+
+type SavingCursor = { date: string; id: string }
+export type SavingPage = {
+  items: (typeof savingTransactions.$inferSelect)[]
+  nextCursor: SavingCursor | null
+  totalCount: number
+}
 
 type ConditionInput = typeof migrationConditions.$inferInsert
 type MissionInput = typeof missions.$inferInsert
@@ -498,12 +508,47 @@ export class CoreRepository {
   // Bounded read for the lean home/finance loaders. listSavings() remains for
   // the archived charts and full-history restoration path.
   listRecentSavings(limit = 100) {
-    return this.db
-      .select()
+    return this.listRecentSavingsPage(limit).then((page) => page.items)
+  }
+
+  async listRecentSavingsPage(
+    limit = 20,
+    cursor?: SavingCursor,
+  ): Promise<SavingPage> {
+    const rows = cursor
+      ? await this.db
+          .select()
+          .from(savingTransactions)
+          .where(
+            or(
+              lt(savingTransactions.date, cursor.date),
+              and(
+                eq(savingTransactions.date, cursor.date),
+                lt(savingTransactions.id, cursor.id),
+              ),
+            ),
+          )
+          .orderBy(desc(savingTransactions.date), desc(savingTransactions.id))
+          .limit(limit + 1)
+          .all()
+      : await this.db
+          .select()
+          .from(savingTransactions)
+          .orderBy(desc(savingTransactions.date), desc(savingTransactions.id))
+          .limit(limit + 1)
+          .all()
+    const [{ totalCount }] = await this.db
+      .select({ totalCount: count() })
       .from(savingTransactions)
-      .orderBy(desc(savingTransactions.date))
-      .limit(limit)
       .all()
+    const items = rows.slice(0, limit)
+    const last = items.at(-1)
+    return {
+      items,
+      nextCursor:
+        rows.length > limit && last ? { date: last.date, id: last.id } : null,
+      totalCount,
+    }
   }
 
   async createSaving(input: typeof savingTransactions.$inferInsert) {

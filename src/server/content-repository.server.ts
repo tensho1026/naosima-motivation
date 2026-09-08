@@ -1,5 +1,16 @@
 import { env } from 'cloudflare:workers'
-import { asc, desc, eq, inArray } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  or,
+  sql,
+} from 'drizzle-orm'
 
 import { getDatabase } from '#/db/index.server'
 import {
@@ -9,6 +20,7 @@ import {
   idealDayItems,
   idealWeekItems,
   memories,
+  mediaCleanupJobs,
   monthlyReviews,
   monthlySnapshots,
   naoshimaReasons,
@@ -22,6 +34,17 @@ import type { ExtraResourceName } from './content-validation'
 
 type VisitInput = typeof visits.$inferInsert & { places?: string[] }
 export type ResourceRow = Record<string, string | number | boolean | null>
+
+type VisitCursor = { startDate: string; id: string }
+type MemoryCursor = { date: string; id: string }
+type PhotoCursor = { favorite: boolean; createdAt: string; id: string }
+type VisitRow = typeof visits.$inferSelect & { places: string[] }
+
+export type PageResult<T, C> = {
+  items: T[]
+  nextCursor: C | null
+  totalCount: number
+}
 
 const resourceConfig: Record<
   ExtraResourceName,
@@ -361,13 +384,44 @@ export class ContentRepository {
     }))
   }
 
-  async listRecentVisits(limit = 50) {
-    const visitRows = await this.db
-      .select()
+  countVisits() {
+    return this.db
+      .select({ totalCount: count() })
       .from(visits)
-      .orderBy(desc(visits.startDate))
-      .limit(limit)
-      .all()
+      .get()
+      .then((row) => row?.totalCount ?? 0)
+  }
+
+  async listRecentVisits(limit = 50) {
+    return (await this.listRecentVisitsPage(limit)).items
+  }
+
+  async listRecentVisitsPage(
+    limit = 20,
+    cursor?: VisitCursor,
+  ): Promise<PageResult<VisitRow, VisitCursor>> {
+    const visitRows = cursor
+      ? await this.db
+          .select()
+          .from(visits)
+          .where(
+            or(
+              lt(visits.startDate, cursor.startDate),
+              and(
+                eq(visits.startDate, cursor.startDate),
+                lt(visits.id, cursor.id),
+              ),
+            ),
+          )
+          .orderBy(desc(visits.startDate), desc(visits.id))
+          .limit(limit + 1)
+          .all()
+      : await this.db
+          .select()
+          .from(visits)
+          .orderBy(desc(visits.startDate), desc(visits.id))
+          .limit(limit + 1)
+          .all()
     const visitIds = visitRows.map((visit) => visit.id)
     const places =
       visitIds.length > 0
@@ -383,10 +437,23 @@ export class ContentRepository {
       current.push(place.placeName)
       placesByVisit.set(place.visitId, current)
     }
-    return visitRows.map((visit) => ({
+    const items = visitRows.slice(0, limit).map((visit) => ({
       ...visit,
       places: placesByVisit.get(visit.id) ?? [],
     }))
+    const last = items.at(-1)
+    const [{ totalCount }] = await this.db
+      .select({ totalCount: count() })
+      .from(visits)
+      .all()
+    return {
+      items,
+      nextCursor:
+        visitRows.length > limit && last
+          ? { startDate: last.startDate, id: last.id }
+          : null,
+      totalCount,
+    }
   }
 
   async saveVisit({ places = [], ...input }: VisitInput) {
@@ -431,12 +498,44 @@ export class ContentRepository {
   }
 
   listRecentMemories(limit = 100) {
-    return this.db
-      .select()
+    return this.listRecentMemoriesPage(limit).then((page) => page.items)
+  }
+
+  async listRecentMemoriesPage(
+    limit = 20,
+    cursor?: MemoryCursor,
+  ): Promise<PageResult<(typeof memories)['$inferSelect'], MemoryCursor>> {
+    const rows = cursor
+      ? await this.db
+          .select()
+          .from(memories)
+          .where(
+            or(
+              lt(memories.date, cursor.date),
+              and(eq(memories.date, cursor.date), lt(memories.id, cursor.id)),
+            ),
+          )
+          .orderBy(desc(memories.date), desc(memories.id))
+          .limit(limit + 1)
+          .all()
+      : await this.db
+          .select()
+          .from(memories)
+          .orderBy(desc(memories.date), desc(memories.id))
+          .limit(limit + 1)
+          .all()
+    const [{ totalCount }] = await this.db
+      .select({ totalCount: count() })
       .from(memories)
-      .orderBy(desc(memories.date))
-      .limit(limit)
       .all()
+    const items = rows.slice(0, limit)
+    const last = items.at(-1)
+    return {
+      items,
+      nextCursor:
+        rows.length > limit && last ? { date: last.date, id: last.id } : null,
+      totalCount,
+    }
   }
 
   saveMemory(input: typeof memories.$inferInsert) {
@@ -464,12 +563,68 @@ export class ContentRepository {
   }
 
   listRecentPhotos(limit = 60) {
-    return this.db
-      .select()
+    return this.listRecentPhotosPage(limit).then((page) => page.items)
+  }
+
+  async listRecentPhotosPage(
+    limit = 20,
+    cursor?: PhotoCursor,
+  ): Promise<PageResult<(typeof photos)['$inferSelect'], PhotoCursor>> {
+    const createdAt = cursor ? new Date(cursor.createdAt) : null
+    const rows = cursor
+      ? await this.db
+          .select()
+          .from(photos)
+          .where(
+            or(
+              lt(photos.favorite, cursor.favorite),
+              and(
+                eq(photos.favorite, cursor.favorite),
+                or(
+                  lt(photos.createdAt, createdAt!),
+                  and(
+                    eq(photos.createdAt, createdAt!),
+                    lt(photos.id, cursor.id),
+                  ),
+                ),
+              ),
+            ),
+          )
+          .orderBy(
+            desc(photos.favorite),
+            desc(photos.createdAt),
+            desc(photos.id),
+          )
+          .limit(limit + 1)
+          .all()
+      : await this.db
+          .select()
+          .from(photos)
+          .orderBy(
+            desc(photos.favorite),
+            desc(photos.createdAt),
+            desc(photos.id),
+          )
+          .limit(limit + 1)
+          .all()
+    const [{ totalCount }] = await this.db
+      .select({ totalCount: count() })
       .from(photos)
-      .orderBy(desc(photos.favorite), desc(photos.takenAt))
-      .limit(limit)
       .all()
+    const items = rows.slice(0, limit)
+    const last = items.at(-1)
+    return {
+      items,
+      nextCursor:
+        rows.length > limit && last
+          ? {
+              favorite: last.favorite,
+              createdAt: last.createdAt.toISOString(),
+              id: last.id,
+            }
+          : null,
+      totalCount,
+    }
   }
 
   /**
@@ -514,6 +669,19 @@ export class ContentRepository {
 
   deletePhotoMetadata(id: string) {
     return this.db.delete(photos).where(eq(photos.id, id)).returning().get()
+  }
+
+  async deletePhotoAndQueueCleanup(id: string, storageKeys: string[]) {
+    await this.db.batch([
+      this.db.delete(photos).where(eq(photos.id, id)),
+      ...storageKeys.map((storageKey) =>
+        this.db
+          .insert(mediaCleanupJobs)
+          .values({ storageKey })
+          .onConflictDoNothing(),
+      ),
+    ])
+    return { deleted: true }
   }
 
   setFavoritePhoto(id: string, favorite: boolean) {
@@ -609,6 +777,33 @@ export class ContentRepository {
       .get()
   }
 
+  async saveReviewAndSnapshot(
+    reviewInput: typeof monthlyReviews.$inferInsert,
+    snapshotInput: typeof monthlySnapshots.$inferInsert,
+  ) {
+    const reviewWrite = reviewInput.id
+      ? this.db
+          .update(monthlyReviews)
+          .set({ ...reviewInput, updatedAt: new Date() })
+          .where(eq(monthlyReviews.id, reviewInput.id))
+      : this.db
+          .insert(monthlyReviews)
+          .values(reviewInput)
+          .onConflictDoUpdate({
+            target: monthlyReviews.month,
+            set: { ...reviewInput, updatedAt: new Date() },
+          })
+    const snapshotWrite = this.db
+      .insert(monthlySnapshots)
+      .values(snapshotInput)
+      .onConflictDoUpdate({
+        target: monthlySnapshots.month,
+        set: snapshotInput,
+      })
+    await this.db.batch([reviewWrite, snapshotWrite])
+    return this.getReview(reviewInput.month)
+  }
+
   listAudio() {
     return this.db
       .select()
@@ -643,6 +838,46 @@ export class ContentRepository {
       .where(eq(audioRecords.id, id))
       .returning()
       .get()
+  }
+
+  async deleteAudioAndQueueCleanup(id: string, storageKey: string) {
+    await this.db.batch([
+      this.db.delete(audioRecords).where(eq(audioRecords.id, id)),
+      this.db
+        .insert(mediaCleanupJobs)
+        .values({ storageKey })
+        .onConflictDoNothing(),
+    ])
+    return { deleted: true }
+  }
+
+  listPendingMediaCleanup(limit = 50) {
+    return this.db
+      .select()
+      .from(mediaCleanupJobs)
+      .where(isNull(mediaCleanupJobs.completedAt))
+      .orderBy(asc(mediaCleanupJobs.createdAt))
+      .limit(limit)
+      .all()
+  }
+
+  markMediaCleanupAttempt(storageKey: string, error: string) {
+    return this.db
+      .update(mediaCleanupJobs)
+      .set({
+        attempts: sql`${mediaCleanupJobs.attempts} + 1`,
+        lastError: error,
+      })
+      .where(eq(mediaCleanupJobs.storageKey, storageKey))
+      .run()
+  }
+
+  markMediaCleanupComplete(storageKey: string) {
+    return this.db
+      .update(mediaCleanupJobs)
+      .set({ completedAt: new Date(), lastError: null })
+      .where(eq(mediaCleanupJobs.storageKey, storageKey))
+      .run()
   }
 
   async listExtra(resource: ExtraResourceName) {
@@ -704,6 +939,23 @@ export class ContentRepository {
   async deleteExtra(resource: ExtraResourceName, id: string) {
     const { table } = resourceConfig[resource]
     await env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id).run()
+    return { deleted: true }
+  }
+
+  async deleteExtraAndQueueCleanup(
+    resource: ExtraResourceName,
+    id: string,
+    storageKey: string,
+  ) {
+    const { table } = resourceConfig[resource]
+    const now = Math.floor(Date.now() / 1_000)
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM ${table} WHERE id = ?`).bind(id),
+      env.DB.prepare(
+        `INSERT OR IGNORE INTO media_cleanup_jobs
+          (id, storage_key, attempts, created_at) VALUES (?, ?, 0, ?)`,
+      ).bind(crypto.randomUUID(), storageKey, now),
+    ])
     return { deleted: true }
   }
 

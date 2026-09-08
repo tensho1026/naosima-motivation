@@ -22,8 +22,13 @@ import {
   deletePhoto,
   deleteVisit,
   getMemoriesCore,
+  getMemoriesPage,
+  getPhotosPage,
+  getVisitsPage,
   setFavoritePhoto,
 } from '#/server/content.functions'
+import { formatAppDate } from '#/utils/date'
+import { createPhotoThumbnail } from '#/utils/image'
 
 export const Route = createFileRoute('/memories')({
   loader: () => getMemoriesCore(),
@@ -42,7 +47,34 @@ function LeanMemoriesPage() {
   const uploadPhoto = useServerFn(createPhoto)
   const removePhoto = useServerFn(deletePhoto)
   const favoritePhoto = useServerFn(setFavoritePhoto)
+  const loadVisits = useServerFn(getVisitsPage)
+  const loadMemories = useServerFn(getMemoriesPage)
+  const loadPhotos = useServerFn(getPhotosPage)
   const [pending, setPending] = useState(false)
+  const [loadingMore, setLoadingMore] = useState<string | null>(null)
+  type ListState = {
+    data: typeof data
+    visits: typeof data.visits
+    memories: typeof data.memories
+    photos: typeof data.photos
+    visitCursor: typeof data.pagination.visits.nextCursor
+    memoryCursor: typeof data.pagination.memories.nextCursor
+    photoCursor: typeof data.pagination.photos.nextCursor
+  }
+  const initialListState: ListState = {
+    data,
+    visits: data.visits,
+    memories: data.memories,
+    photos: data.photos,
+    visitCursor: data.pagination.visits.nextCursor,
+    memoryCursor: data.pagination.memories.nextCursor,
+    photoCursor: data.pagination.photos.nextCursor,
+  }
+  const [listState, setListState] = useState<ListState>(initialListState)
+  const currentListState =
+    listState.data === data ? listState : initialListState
+  const { visits, memories, photos, visitCursor, memoryCursor, photoCursor } =
+    currentListState
 
   async function run(
     action: () => Promise<unknown>,
@@ -65,7 +97,84 @@ function LeanMemoriesPage() {
     }
   }
 
-  const totalDays = data.visits.reduce((sum, visit) => {
+  async function loadMoreVisits() {
+    if (!visitCursor) return
+    setLoadingMore('visits')
+    try {
+      const page = await loadVisits({
+        data: { cursor: visitCursor, limit: 20 },
+      })
+      setListState((current) => {
+        const base = current.data === data ? current : currentListState
+        return {
+          ...base,
+          visits: [...base.visits, ...page.items],
+          visitCursor: page.nextCursor,
+        }
+      })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '訪問の読み込みに失敗しました',
+        'error',
+      )
+    } finally {
+      setLoadingMore(null)
+    }
+  }
+
+  async function loadMoreMemories() {
+    if (!memoryCursor) return
+    setLoadingMore('memories')
+    try {
+      const page = await loadMemories({
+        data: { cursor: memoryCursor, limit: 20 },
+      })
+      setListState((current) => {
+        const base = current.data === data ? current : currentListState
+        return {
+          ...base,
+          memories: [...base.memories, ...page.items],
+          memoryCursor: page.nextCursor,
+        }
+      })
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : '思い出の読み込みに失敗しました',
+        'error',
+      )
+    } finally {
+      setLoadingMore(null)
+    }
+  }
+
+  async function loadMorePhotos() {
+    if (!photoCursor) return
+    setLoadingMore('photos')
+    try {
+      const page = await loadPhotos({
+        data: { cursor: photoCursor, limit: 20 },
+      })
+      setListState((current) => {
+        const base = current.data === data ? current : currentListState
+        return {
+          ...base,
+          photos: [...base.photos, ...page.items],
+          photoCursor: page.nextCursor,
+        }
+      })
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : '写真の読み込みに失敗しました',
+        'error',
+      )
+    } finally {
+      setLoadingMore(null)
+    }
+  }
+
+  const totalDays = visits.reduce((sum, visit) => {
     const start = new Date(`${visit.startDate}T00:00:00`).getTime()
     const end = new Date(`${visit.endDate}T00:00:00`).getTime()
     return sum + Math.max(Math.round((end - start) / 86_400_000) + 1, 1)
@@ -78,10 +187,22 @@ function LeanMemoriesPage() {
       description="訪問、写真、短い思い出だけを残します。"
     >
       <section className="stats-grid page-stats">
-        <Stat label="訪問" value={`${data.visits.length}回`} tone="sea" />
+        <Stat
+          label="訪問"
+          value={`${data.pagination.visits.totalCount}回`}
+          tone="sea"
+        />
         <Stat label="滞在" value={`${totalDays}日`} tone="green" />
-        <Stat label="写真" value={`${data.photos.length}枚`} tone="gold" />
-        <Stat label="思い出" value={`${data.memories.length}件`} tone="coral" />
+        <Stat
+          label="写真"
+          value={`${data.pagination.photos.totalCount}枚`}
+          tone="gold"
+        />
+        <Stat
+          label="思い出"
+          value={`${data.pagination.memories.totalCount}件`}
+          tone="coral"
+        />
       </section>
 
       <section className="content-grid">
@@ -136,11 +257,11 @@ function LeanMemoriesPage() {
             <SubmitButton pending={pending}>訪問を追加</SubmitButton>
           </form>
 
-          {data.visits.length === 0 ? (
+          {visits.length === 0 ? (
             <EmptyState />
           ) : (
             <div className="visit-list">
-              {data.visits.map((visit) => (
+              {visits.map((visit) => (
                 <article key={visit.id}>
                   <CalendarDays />
                   <div>
@@ -155,6 +276,8 @@ function LeanMemoriesPage() {
                   </Badge>
                   <button
                     className="icon-button danger"
+                    type="button"
+                    aria-label={`「${visit.title}」の訪問記録を削除`}
                     onClick={() =>
                       window.confirm('訪問記録を削除しますか？') &&
                       void run(
@@ -169,6 +292,18 @@ function LeanMemoriesPage() {
               ))}
             </div>
           )}
+          {visitCursor ? (
+            <button
+              className="button ghost"
+              type="button"
+              onClick={() => void loadMoreVisits()}
+              disabled={loadingMore !== null}
+            >
+              {loadingMore === 'visits'
+                ? '読み込み中…'
+                : '訪問をさらに読み込む'}
+            </button>
+          ) : null}
         </Card>
 
         <Card title="短い思い出" eyebrow="記録">
@@ -204,14 +339,14 @@ function LeanMemoriesPage() {
               <input
                 name="date"
                 type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={formatAppDate()}
                 required
               />
             </Field>
             <Field label="訪問">
               <select name="visitId">
                 <option value="">なし</option>
-                {data.visits.map((visit) => (
+                {visits.map((visit) => (
                   <option key={visit.id} value={visit.id}>
                     {visit.title}
                   </option>
@@ -221,7 +356,7 @@ function LeanMemoriesPage() {
             <Field label="写真">
               <select name="photoId">
                 <option value="">なし</option>
-                {data.photos.map((photo) => (
+                {photos.map((photo) => (
                   <option key={photo.id} value={photo.id}>
                     {photo.caption ?? photo.takenAt ?? photo.id}
                   </option>
@@ -235,7 +370,7 @@ function LeanMemoriesPage() {
           </form>
 
           <div className="item-list">
-            {data.memories.map((memory) => (
+            {memories.map((memory) => (
               <article className="list-row" key={memory.id}>
                 <div>
                   <strong>{memory.title}</strong>
@@ -245,6 +380,8 @@ function LeanMemoriesPage() {
                 </div>
                 <button
                   className="icon-button danger"
+                  type="button"
+                  aria-label={`「${memory.title}」を削除`}
                   onClick={() =>
                     window.confirm('思い出を削除しますか？') &&
                     void run(
@@ -258,6 +395,18 @@ function LeanMemoriesPage() {
               </article>
             ))}
           </div>
+          {memoryCursor ? (
+            <button
+              className="button ghost"
+              type="button"
+              onClick={() => void loadMoreMemories()}
+              disabled={loadingMore !== null}
+            >
+              {loadingMore === 'memories'
+                ? '読み込み中…'
+                : '思い出をさらに読み込む'}
+            </button>
+          ) : null}
         </Card>
       </section>
 
@@ -265,11 +414,26 @@ function LeanMemoriesPage() {
         <form
           className="stack-form"
           encType="multipart/form-data"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault()
             const form = event.currentTarget
+            const values = new FormData(form)
+            const file = values.get('file')
+            if (file instanceof File) {
+              try {
+                const thumbnail = await createPhotoThumbnail(file)
+                values.set('thumbnail', thumbnail.file)
+                values.set('width', String(thumbnail.width))
+                values.set('height', String(thumbnail.height))
+              } catch {
+                notify(
+                  'サムネイルを作成できなかったため、元画像を保存します',
+                  'error',
+                )
+              }
+            }
             void run(
-              () => uploadPhoto({ data: new FormData(form) }),
+              () => uploadPhoto({ data: values }),
               '写真を保存しました',
               form,
             )
@@ -289,16 +453,19 @@ function LeanMemoriesPage() {
           </SubmitButton>
         </form>
 
-        {data.photos.length === 0 ? (
+        {photos.length === 0 ? (
           <EmptyState title="写真はまだありません" />
         ) : (
           <div className="photo-grid">
-            {data.photos.map((photo) => (
+            {photos.map((photo) => (
               <figure key={photo.id}>
                 <img
-                  src={photo.imageUrl}
+                  src={photo.thumbnailUrl ?? photo.imageUrl}
                   alt={photo.caption ?? '直島の写真'}
                   loading="lazy"
+                  decoding="async"
+                  width={photo.width ?? 4}
+                  height={photo.height ?? 3}
                 />
                 <figcaption>
                   <div>
@@ -307,7 +474,12 @@ function LeanMemoriesPage() {
                   </div>
                   <button
                     className={`icon-button ${photo.favorite ? 'favorite' : ''}`}
-                    aria-label="お気に入り"
+                    type="button"
+                    aria-label={
+                      photo.favorite
+                        ? `「${photo.caption ?? 'この写真'}」のお気に入りを解除`
+                        : `「${photo.caption ?? 'この写真'}」をお気に入りにする`
+                    }
                     onClick={() =>
                       void run(
                         () =>
@@ -327,6 +499,8 @@ function LeanMemoriesPage() {
                   </button>
                   <button
                     className="icon-button danger"
+                    type="button"
+                    aria-label={`「${photo.caption ?? 'この写真'}」を削除`}
                     onClick={() =>
                       window.confirm('写真を削除しますか？') &&
                       void run(
@@ -342,6 +516,16 @@ function LeanMemoriesPage() {
             ))}
           </div>
         )}
+        {photoCursor ? (
+          <button
+            className="button ghost"
+            type="button"
+            onClick={() => void loadMorePhotos()}
+            disabled={loadingMore !== null}
+          >
+            {loadingMore === 'photos' ? '読み込み中…' : '写真をさらに読み込む'}
+          </button>
+        ) : null}
       </Card>
     </Page>
   )

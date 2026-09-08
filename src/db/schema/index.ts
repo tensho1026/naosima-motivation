@@ -318,6 +318,10 @@ export const photos = sqliteTable(
     id: id(),
     storageKey: text('storage_key').notNull().unique(),
     imageUrl: text('image_url').notNull(),
+    thumbnailStorageKey: text('thumbnail_storage_key').unique(),
+    thumbnailUrl: text('thumbnail_url'),
+    width: integer('width'),
+    height: integer('height'),
     caption: text('caption'),
     takenAt: text('taken_at'),
     favorite: integer('favorite', { mode: 'boolean' }).notNull().default(false),
@@ -781,6 +785,23 @@ export const timeCapsules = sqliteTable('time_capsules', {
   openedAt: timestamp('opened_at'),
   ...timestamps,
 })
+
+export const mediaCleanupJobs = sqliteTable(
+  'media_cleanup_jobs',
+  {
+    id: id(),
+    storageKey: text('storage_key').notNull().unique(),
+    attempts: integer('attempts').notNull().default(0),
+    lastError: text('last_error'),
+    completedAt: timestamp('completed_at'),
+    createdAt: timestamp('created_at')
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index('idx_media_cleanup_pending').on(table.completedAt, table.createdAt),
+  ],
+)
 
 export const photoComparisons = sqliteTable('photo_comparisons', {
   id: id(),
